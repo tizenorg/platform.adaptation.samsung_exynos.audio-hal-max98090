@@ -1,0 +1,51 @@
+AC_PREREQ([2.67])
+
+AC_INIT([audio-hal-max98090], [0.1])
+AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AC_CONFIG_HEADERS([config.h])
+
+AC_CONFIG_MACRO_DIR([m4])
+
+# Checks for programs.
+m4_pattern_allow([AM_PROG_AR])
+AM_PROG_AR
+AC_PROG_CC
+AM_PROG_CC_C_O
+AC_PROG_CXX
+AC_PROG_LIBTOOL
+AC_PROG_AWK
+AC_PROG_CPP
+AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_MAKE_SET
+PKG_PROG_PKG_CONFIG
+
+# Checks for libraries.
+
+PKG_CHECK_MODULES(ASOUNDLIB, alsa >= 1.0.24)
+AC_SUBST(ASOUNDLIB_CFLAGS)
+AC_SUBST(ASOUNDLIB_LIBS)
+
+PKG_CHECK_MODULES(VCONF, vconf)
+AC_SUBST(VCONF_CFLAGS)
+AC_SUBST(VCONF_LIBS)
+
+PKG_CHECK_MODULES(INIPARSER, iniparser)
+AC_SUBST(INIPARSER_CFLAGS)
+AC_SUBST(INIPARSER_LIBS)
+
+PKG_CHECK_MODULES(DLOG, dlog)
+AC_SUBST(DLOG_CFLAGS)
+AC_SUBST(DLOG_LIBS)
+
+# Checks for header files.
+
+# Checks for typedefs, structures, and compiler characteristics.
+
+# Checks for library functions.
+
+
+AC_CONFIG_FILES([ \
+        Makefile
+        ])
+AC_OUTPUT
