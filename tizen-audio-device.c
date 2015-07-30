@@ -160,9 +160,11 @@ static audio_return_t _do_route_ap_playback_capture (audio_mgr_t *am, audio_rout
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     device_info_t *devices = route_info->device_infos;
-    int mod_idx = 0;
     const char *verb = NULL;
-    const char *modifiers[MAX_MODIFIERS] = {NULL,};
+
+    /* To Do: Set modifiers */
+    /* int mod_idx = 0; */
+    /* const char *modifiers[MAX_MODIFIERS] = {NULL,}; */
 
     verb = AUDIO_USE_CASE_VERB_HIFI;
     AUDIO_LOG_INFO("do_route_ap_playback_capture++ ");
@@ -175,7 +177,8 @@ static audio_return_t _do_route_ap_playback_capture (audio_mgr_t *am, audio_rout
     }
     am->device.mode = VERB_NORMAL;
 
-    /* FIXME. Set modifiers */
+    /* To Do: Set modifiers */
+    /*
     if (!strncmp("voice_recognition", route_info->role, MAX_NAME_LEN)) {
         modifiers[mod_idx++] = AUDIO_USE_CASE_MODIFIER_VOICESEARCH;
     } else if ((!strncmp("alarm", route_info->role, MAX_NAME_LEN))||(!strncmp("notifiication", route_info->role, MAX_NAME_LEN))) {
@@ -190,6 +193,7 @@ static audio_return_t _do_route_ap_playback_capture (audio_mgr_t *am, audio_rout
             modifiers[mod_idx++] = AUDIO_USE_CASE_MODIFIER_MEDIA;
     }
     audio_ret = _audio_ucm_set_modifiers (am, verb, modifiers);
+    */
 
     return audio_ret;
 }
@@ -222,9 +226,10 @@ audio_return_t _do_route_voip (audio_mgr_t *am, device_info_t *devices, int32_t 
 audio_return_t _do_route_reset (audio_mgr_t *am, uint32_t direction)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    const char *verb = NULL;
 
-    verb = AUDIO_USE_CASE_VERB_INACTIVE;
+    /* FIXME: If you need to reset, set verb inactive */
+    /* const char *verb = NULL; */
+    /* verb = AUDIO_USE_CASE_VERB_INACTIVE; */
 
     AUDIO_LOG_INFO("do_route_reset++, direction(%p)", direction);
     AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
@@ -273,7 +278,6 @@ audio_return_t audio_do_route (void *userdata, audio_route_info_t *info)
 audio_return_t audio_update_stream_connection_info (void *userdata, audio_stream_info_t *info, uint32_t is_connected)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    int i = 0;
     audio_mgr_t *am = (audio_mgr_t *)userdata;
 
     AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
@@ -286,7 +290,6 @@ audio_return_t audio_update_stream_connection_info (void *userdata, audio_stream
 audio_return_t audio_update_route_option (void *userdata, audio_route_option_t *option)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    int i = 0;
     audio_mgr_t *am = (audio_mgr_t *)userdata;
 
     AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
@@ -411,7 +414,7 @@ audio_return_t audio_pcm_avail(void *pcm_handle)
         n = snd_pcm_avail(pcm_handle);
 
         if (n <= 0) {
-            ret == snd_pcm_wait(pcm_handle, 10);
+            ret = snd_pcm_wait(pcm_handle, 10);
             if(ret == 0){
                 AUDIO_LOG_DEBUG("snd_pcm_wait = %d\n", ret);
                 continue;

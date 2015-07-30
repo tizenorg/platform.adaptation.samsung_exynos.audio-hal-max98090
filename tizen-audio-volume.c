@@ -47,14 +47,6 @@ static const char *g_volume_vconf[AUDIO_VOLUME_TYPE_MAX] = {
     "file/private/sound/volume/fixed",          /* AUDIO_VOLUME_TYPE_FIXED */
 };
 
-static const char *__get_device_string_by_idx (uint32_t dev_idx)
-{
-    switch (dev_idx) {
-    case AUDIO_VOLUME_DEVICE_DEFAULT:       return "speaker";
-    default:                                return "invalid";
-    }
-}
-
 static const char *__get_volume_type_string_by_idx (uint32_t vol_type_idx)
 {
     switch (vol_type_idx) {
@@ -116,7 +108,7 @@ static const char *__get_gain_type_string_by_idx (uint32_t gain_type_idx)
 static void __dump_tb (audio_mgr_t *am)
 {
     audio_volume_value_table_t *volume_value_table = am->volume.volume_value_table;
-    uint32_t dev_idx, vol_type_idx, vol_level_idx, gain_type_idx;
+    uint32_t vol_type_idx, vol_level_idx, gain_type_idx;
     const char *gain_type_str[] = {
         "def",          /* AUDIO_GAIN_TYPE_DEFAULT */
         "dial",         /* AUDIO_GAIN_TYPE_DIALER */
