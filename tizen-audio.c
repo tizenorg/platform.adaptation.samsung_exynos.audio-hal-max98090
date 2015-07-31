@@ -179,7 +179,8 @@ uint32_t _audio_sample_size(audio_sample_format_t format)
     return g_size_table[format];
 }
 audio_return_t audio_get_buffer_attr(void                  *userdata,
-                                     audio_latency_t       latency,
+                                     uint32_t              direction,
+                                     const char            *latency,
                                      uint32_t              samplerate,
                                      audio_sample_format_t format,
                                      uint32_t              channels,
@@ -190,13 +191,14 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
                                      uint32_t              *fragsize)
 {
     assert(userdata);
+    assert(latency);
     assert(maxlength);
     assert(tlength);
     assert(prebuf);
     assert(minreq);
     assert(fragsize);
 
-    AUDIO_LOG_DEBUG("hal-latency - audio_get_buffer_attr(latency:%d, samplerate:%d, format:%d, channels:%d)", latency, samplerate, format, channels);
+    AUDIO_LOG_DEBUG("hal-latency - audio_get_buffer_attr(direction:%d, latency:%s, samplerate:%d, format:%d, channels:%d)", direction, latency, samplerate, format, channels);
 
     audio_mgr_t *am = (audio_mgr_t *)userdata;
 
@@ -208,106 +210,96 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
         return AUDIO_ERR_PARAMETER;
     }
 
-    switch (latency) {
-    case AUDIO_IN_LATENCY_LOW:
-        AUDIO_LOG_DEBUG("AUDIO_IN_LATENCY_LOW");
-        period_time        = PERIOD_TIME_FOR_LOW_LATENCY_MSEC;
-        sample_per_period  = (samplerate * period_time) / 1000;
-        periods_per_buffer = PERIODS_PER_BUFFER_FASTMODE;
-        *prebuf            = 0;
-        *minreq            = -1;
-        *tlength           = -1;
-        *maxlength         = -1;
-        *fragsize          = sample_per_period * _audio_sample_size(format);
-        break;
-
-    case AUDIO_IN_LATENCY_MID:
-        AUDIO_LOG_DEBUG("AUDIO_IN_LATENCY_MID");
-        period_time        = PERIOD_TIME_FOR_MID_LATENCY_MSEC;
-        sample_per_period  = (samplerate * period_time) / 1000;
-        periods_per_buffer = PERIODS_PER_BUFFER_DEFAULT;
-        *prebuf            = 0;
-        *minreq            = -1;
-        *tlength           = -1;
-        *maxlength         = -1;
-        *fragsize          = _audio_usec_to_bytes(100000, samplerate, format, channels);
-        break;
-
-    case AUDIO_IN_LATENCY_HIGH:
-        AUDIO_LOG_DEBUG("AUDIO_IN_LATENCY_HIGH");
-        period_time        = PERIOD_TIME_FOR_HIGH_LATENCY_MSEC;
-        sample_per_period  = (samplerate * period_time) / 1000;
-        periods_per_buffer = PERIODS_PER_BUFFER_CAPTURE;
-        *prebuf            = 0;
-        *minreq            = -1;
-        *tlength           = -1;
-        *maxlength         = -1;
-        *fragsize          = sample_per_period * _audio_sample_size(format);
-        break;
-
-    case AUDIO_IN_LATENCY_VOIP:
-        AUDIO_LOG_DEBUG("AUDIO_IN_LATENCY_VOIP");
-        period_time        = PERIOD_TIME_FOR_VOIP_LATENCY_MSEC;
-        sample_per_period  = (samplerate * period_time) / 1000;
-        periods_per_buffer = PERIODS_PER_BUFFER_VOIP;
-        *prebuf            = 0;
-        *minreq            = -1;
-        *tlength           = -1;
-        *maxlength         = -1;
-        *fragsize          = sample_per_period * _audio_sample_size(format);
-        break;
-
-    case AUDIO_OUT_LATENCY_LOW:
-        AUDIO_LOG_DEBUG("AUDIO_OUT_LATENCY_LOW");
-        period_time        = PERIOD_TIME_FOR_LOW_LATENCY_MSEC;
-        sample_per_period  = (samplerate * period_time) / 1000;
-        periods_per_buffer = PERIODS_PER_BUFFER_FASTMODE;
-        *prebuf            = (samplerate / 100) * _audio_sample_size(format) * channels;
-        *minreq            = -1;
-        *tlength           = (samplerate / 10) * _audio_sample_size(format) * channels;
-        *maxlength         = -1;
-        *fragsize          = 0;
-        break;
-
-    case AUDIO_OUT_LATENCY_MID:
-        AUDIO_LOG_DEBUG("AUDIO_OUT_LATENCY_MID");
-        period_time        = PERIOD_TIME_FOR_MID_LATENCY_MSEC;
-        sample_per_period  = (samplerate * period_time) / 1000;
-        periods_per_buffer = PERIODS_PER_BUFFER_DEFAULT;
-        *prebuf            = -1;
-        *minreq            = -1;
-        *tlength           = (uint32_t) _audio_usec_to_bytes(350000, samplerate, format, channels);
-        *maxlength         = -1;
-        *fragsize          = -1;
-        break;
-
-    case AUDIO_OUT_LATENCY_HIGH:
-        AUDIO_LOG_DEBUG("AUDIO_OUT_LATENCY_HIGH");
-        period_time        = PERIOD_TIME_FOR_HIGH_LATENCY_MSEC;
-        sample_per_period  = (samplerate * period_time) / 1000;
-        periods_per_buffer = PERIODS_PER_BUFFER_PLAYBACK;
-        *prebuf            = 0;
-        *minreq            = -1;
-        *tlength           = (uint32_t) _audio_usec_to_bytes(500000, samplerate, format, channels);
-        *maxlength         = -1;
-        *fragsize          = -1;
-        break;
-
-    case AUDIO_OUT_LATENCY_VOIP:
-        AUDIO_LOG_DEBUG("AUDIO_OUT_LATENCY_VOIP");
-        period_time        = PERIOD_TIME_FOR_VOIP_LATENCY_MSEC;
-        sample_per_period  = (samplerate * period_time) / 1000;
-        periods_per_buffer = PERIODS_PER_BUFFER_VOIP;
-        *prebuf            = -1;
-        *minreq            = _audio_usec_to_bytes(20000, samplerate, format, channels);
-        *tlength           = _audio_usec_to_bytes(100000, samplerate, format, channels);
-        *maxlength         = -1;
-        *fragsize          = 0;
-        break;
-
-    default:
-        AUDIO_LOG_ERROR("hal-latency - The latency(%d) is undefined", latency);
-        return AUDIO_ERR_UNDEFINED;
+    if (direction == AUDIO_DIRECTION_IN) {
+        if (!strcmp(latency, AUDIO_LATENCY_LOW)) {
+            AUDIO_LOG_DEBUG("AUDIO_DIRECTION_IN, AUDIO_LATENCY_LOW");
+            period_time        = PERIOD_TIME_FOR_LOW_LATENCY_MSEC;
+            sample_per_period  = (samplerate * period_time) / 1000;
+            periods_per_buffer = PERIODS_PER_BUFFER_FASTMODE;
+            *prebuf            = 0;
+            *minreq            = -1;
+            *tlength           = -1;
+            *maxlength         = -1;
+            *fragsize          = sample_per_period * _audio_sample_size(format);
+        } else if (!strcmp(latency, AUDIO_LATENCY_MID)) {
+            AUDIO_LOG_DEBUG("AUDIO_DIRECTION_IN, AUDIO_LATENCY_MID");
+            period_time        = PERIOD_TIME_FOR_MID_LATENCY_MSEC;
+            sample_per_period  = (samplerate * period_time) / 1000;
+            periods_per_buffer = PERIODS_PER_BUFFER_DEFAULT;
+            *prebuf            = 0;
+            *minreq            = -1;
+            *tlength           = -1;
+            *maxlength         = -1;
+            *fragsize          = _audio_usec_to_bytes(100000, samplerate, format, channels);
+        } else if (!strcmp(latency, AUDIO_LATENCY_HIGH)) {
+            AUDIO_LOG_DEBUG("AUDIO_DIRECTION_IN, AUDIO_LATENCY_HIGH");
+            period_time        = PERIOD_TIME_FOR_HIGH_LATENCY_MSEC;
+            sample_per_period  = (samplerate * period_time) / 1000;
+            periods_per_buffer = PERIODS_PER_BUFFER_CAPTURE;
+            *prebuf            = 0;
+            *minreq            = -1;
+            *tlength           = -1;
+            *maxlength         = -1;
+            *fragsize          = sample_per_period * _audio_sample_size(format);
+        } else if (!strcmp(latency, AUDIO_LATENCY_VOIP)) {
+            AUDIO_LOG_DEBUG("AUDIO_DIRECTION_IN, AUDIO_LATENCY_VOIP");
+            period_time        = PERIOD_TIME_FOR_VOIP_LATENCY_MSEC;
+            sample_per_period  = (samplerate * period_time) / 1000;
+            periods_per_buffer = PERIODS_PER_BUFFER_VOIP;
+            *prebuf            = 0;
+            *minreq            = -1;
+            *tlength           = -1;
+            *maxlength         = -1;
+            *fragsize          = sample_per_period * _audio_sample_size(format);
+        } else {
+            AUDIO_LOG_ERROR("hal-latency - The latency(%s) is undefined", latency);
+            return AUDIO_ERR_UNDEFINED;
+        }
+    } else {  /* AUDIO_DIRECTION_OUT */
+        if (!strcmp(latency, AUDIO_LATENCY_LOW)) {
+            AUDIO_LOG_DEBUG("AUDIO_DIRECTION_OUT, AUDIO_LATENCY_LOW");
+            period_time        = PERIOD_TIME_FOR_LOW_LATENCY_MSEC;
+            sample_per_period  = (samplerate * period_time) / 1000;
+            periods_per_buffer = PERIODS_PER_BUFFER_FASTMODE;
+            *prebuf            = (samplerate / 100) * _audio_sample_size(format) * channels;
+            *minreq            = -1;
+            *tlength           = (samplerate / 10) * _audio_sample_size(format) * channels;
+            *maxlength         = -1;
+            *fragsize          = 0;
+        } else if (!strcmp(latency, AUDIO_LATENCY_MID)) {
+            AUDIO_LOG_DEBUG("AUDIO_DIRECTION_OUT, AUDIO_LATENCY_MID");
+            period_time        = PERIOD_TIME_FOR_MID_LATENCY_MSEC;
+            sample_per_period  = (samplerate * period_time) / 1000;
+            periods_per_buffer = PERIODS_PER_BUFFER_DEFAULT;
+            *prebuf            = -1;
+            *minreq            = -1;
+            *tlength           = (uint32_t) _audio_usec_to_bytes(350000, samplerate, format, channels);
+            *maxlength         = -1;
+            *fragsize          = -1;
+        } else if (!strcmp(latency, AUDIO_LATENCY_HIGH)) {
+            AUDIO_LOG_DEBUG("AUDIO_DIRECTION_OUT, AUDIO_LATENCY_HIGH");
+            period_time        = PERIOD_TIME_FOR_HIGH_LATENCY_MSEC;
+            sample_per_period  = (samplerate * period_time) / 1000;
+            periods_per_buffer = PERIODS_PER_BUFFER_PLAYBACK;
+            *prebuf            = 0;
+            *minreq            = -1;
+            *tlength           = (uint32_t) _audio_usec_to_bytes(500000, samplerate, format, channels);
+            *maxlength         = -1;
+            *fragsize          = -1;
+        } else if (!strcmp(latency, AUDIO_LATENCY_VOIP)) {
+            AUDIO_LOG_DEBUG("AUDIO_DIRECTION_OUT, AUDIO_LATENCY_VOIP");
+            period_time        = PERIOD_TIME_FOR_VOIP_LATENCY_MSEC;
+            sample_per_period  = (samplerate * period_time) / 1000;
+            periods_per_buffer = PERIODS_PER_BUFFER_VOIP;
+            *prebuf            = -1;
+            *minreq            = _audio_usec_to_bytes(20000, samplerate, format, channels);
+            *tlength           = _audio_usec_to_bytes(100000, samplerate, format, channels);
+            *maxlength         = -1;
+            *fragsize          = 0;
+        } else {
+            AUDIO_LOG_ERROR("hal-latency - The latency(%s) is undefined", latency);
+            return AUDIO_ERR_UNDEFINED;
+        }
     }
 
     AUDIO_LOG_INFO("hal-latency - return attr --> prebuf:%d, minreq:%d, tlength:%d, maxlength:%d, fragsize:%d", *prebuf, *minreq, *tlength, *maxlength, *fragsize);
