@@ -98,17 +98,10 @@ typedef enum audio_sample_format {
 }   audio_sample_format_t;
 
 /* audio latency */
-typedef enum audio_latency {
-    AUDIO_IN_LATENCY_LOW,
-    AUDIO_IN_LATENCY_MID,
-    AUDIO_IN_LATENCY_HIGH,
-    AUDIO_IN_LATENCY_VOIP,
-    AUDIO_OUT_LATENCY_LOW,
-    AUDIO_OUT_LATENCY_MID,
-    AUDIO_OUT_LATENCY_HIGH,
-    AUDIO_OUT_LATENCY_VOIP,
-    AUDIO_LATENCY_MAX
-}   audio_latency_t;
+static const char* AUDIO_LATENCY_LOW  = "low";
+static const char* AUDIO_LATENCY_MID  = "mid";
+static const char* AUDIO_LATENCY_HIGH = "high";
+static const char* AUDIO_LATENCY_VOIP = "voip";
 
 typedef struct audio_device_param_info {
     audio_device_param_t param;
@@ -231,7 +224,7 @@ typedef struct audio_interface {
     audio_return_t (*pcm_close)(void *userdata, void *pcm_handle);
     audio_return_t (*pcm_avail)(void *pcm_handle);
     audio_return_t (*pcm_write)(void *pcm_handle, const void *buffer, uint32_t frames);
-    audio_return_t (*get_buffer_attr)(void *userdata, audio_latency_t latency, uint32_t samplerate, audio_sample_format_t format, uint32_t channels, uint32_t *maxlength, uint32_t *tlength, uint32_t *prebuf, uint32_t* minreq, uint32_t *fragsize);
+    audio_return_t (*get_buffer_attr)(void *userdata, uint32_t direction, const char *latency, uint32_t samplerate, audio_sample_format_t format, uint32_t channels, uint32_t *maxlength, uint32_t *tlength, uint32_t *prebuf, uint32_t* minreq, uint32_t *fragsize);
     audio_return_t (*set_callback)(void *userdata, audio_cb_interface_t *cb_interface);
 } audio_interface_t;
 
@@ -254,6 +247,6 @@ audio_return_t audio_pcm_open(void *userdata, void **pcm_handle, void *sample_sp
 audio_return_t audio_pcm_close (void *userdata, void *pcm_handle);
 audio_return_t audio_pcm_avail(void *pcm_handle);
 audio_return_t audio_pcm_write(void *pcm_handle, const void *buffer, uint32_t frames);
-audio_return_t audio_get_buffer_attr(void *userdata, audio_latency_t latency, uint32_t samplerate, audio_sample_format_t format, uint32_t channels, uint32_t *maxlength, uint32_t *tlength, uint32_t *prebuf, uint32_t* minreq, uint32_t *fragsize);
+audio_return_t audio_get_buffer_attr(void *userdata, uint32_t direction, const char *latency, uint32_t samplerate, audio_sample_format_t format, uint32_t channels, uint32_t *maxlength, uint32_t *tlength, uint32_t *prebuf, uint32_t* minreq, uint32_t *fragsize);
 audio_return_t audio_set_callback (void *userdata, audio_cb_interface_t *cb_interface);
 #endif
