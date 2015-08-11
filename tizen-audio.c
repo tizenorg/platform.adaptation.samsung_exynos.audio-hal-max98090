@@ -261,7 +261,7 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             period_time        = PERIOD_TIME_FOR_LOW_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
             periods_per_buffer = PERIODS_PER_BUFFER_FASTMODE;
-            *prebuf            = (samplerate / 100) * _audio_sample_size(format) * channels;  /* 10ms */
+            *prebuf            = 0;
             *minreq            = -1;
             *tlength           = (samplerate / 10) * _audio_sample_size(format) * channels;  /* 100ms */
             *maxlength         = -1;
@@ -271,7 +271,7 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             period_time        = PERIOD_TIME_FOR_MID_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
             periods_per_buffer = PERIODS_PER_BUFFER_DEFAULT;
-            *prebuf            = -1;
+            *prebuf            = 0;
             *minreq            = -1;
             *tlength           = (uint32_t) _audio_usec_to_bytes(200000, samplerate, format, channels);
             *maxlength         = -1;
@@ -291,7 +291,7 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             period_time        = PERIOD_TIME_FOR_VOIP_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
             periods_per_buffer = PERIODS_PER_BUFFER_VOIP;
-            *prebuf            = -1;
+            *prebuf            = 0;
             *minreq            = _audio_usec_to_bytes(20000, samplerate, format, channels);
             *tlength           = _audio_usec_to_bytes(100000, samplerate, format, channels);
             *maxlength         = -1;
