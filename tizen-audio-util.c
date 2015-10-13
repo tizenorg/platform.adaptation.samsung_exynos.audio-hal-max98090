@@ -244,6 +244,15 @@ audio_return_t _audio_mixer_control_get_element(audio_mgr_t *am, const char *ctl
     return AUDIO_RET_OK;
 }
 
+#ifdef __USE_TINYALSA__
+/* Convert pcm format from pulse to alsa */
+static const uint32_t g_format_convert_table[] = {
+    [AUDIO_SAMPLE_U8]        = PCM_FORMAT_S8,
+    [AUDIO_SAMPLE_S16LE]     = PCM_FORMAT_S16_LE,
+    [AUDIO_SAMPLE_S32LE]     = PCM_FORMAT_S32_LE,
+    [AUDIO_SAMPLE_S24_32LE]  = PCM_FORMAT_S24_LE
+};
+#else  /* alsa-lib */
 /* Convert pcm format from pulse to alsa */
 static const uint32_t g_format_convert_table[] = {
     [AUDIO_SAMPLE_U8]        = SND_PCM_FORMAT_U8,
@@ -260,6 +269,7 @@ static const uint32_t g_format_convert_table[] = {
     [AUDIO_SAMPLE_S24_32LE]  = SND_PCM_FORMAT_S24_LE,
     [AUDIO_SAMPLE_S24_32BE]  = SND_PCM_FORMAT_S24_BE
 };
+#endif
 
 uint32_t _convert_format(audio_sample_format_t format)
 {
@@ -399,7 +409,7 @@ audio_return_t _audio_pcm_set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t avail_
         AUDIO_LOG_WARN("Unable to set stop threshold: %s\n", snd_strerror(err));
         goto error;
     }
-    if ((err = snd_pcm_sw_params_set_start_threshold(pcm, swparams, (snd_pcm_uframes_t) -1)) < 0) {
+    if ((err = snd_pcm_sw_params_set_start_threshold(pcm, swparams, (snd_pcm_uframes_t) avail_min)) < 0) {
         AUDIO_LOG_WARN("Unable to set start threshold: %s\n", snd_strerror(err));
         goto error;
     }
