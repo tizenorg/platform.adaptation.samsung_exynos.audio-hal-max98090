@@ -24,6 +24,9 @@
 #include <time.h>
 #include <sys/types.h>
 #include <asoundlib.h>
+#ifdef __USE_TINYALSA__
+#include <tinyalsa/asoundlib.h>
+#endif
 #include <pthread.h>
 #include <use-case.h>
 #include "tizen-audio.h"
@@ -116,8 +119,25 @@ typedef struct device_type {
 #define PLAYBACK_PCM_DEVICE     "hw:0,0"
 #define CAPTURE_PCM_DEVICE      "hw:0,0"
 
-#define PERIODSZ_PLAYBACK 2048
-#define BUFFERSZ_PLAYBACK 4096
+/* hw:0,0 */
+#define PLAYBACK_CARD_ID              0
+#define PLAYBACK_PCM_DEVICE_ID        0
+#define PLAYBACK_PCM_DEVICE_CHANNELS  2
+#define PLAYBACK_PCM_DEVICE_RATE      48000
+#define PLAYBACK_PCM_DEVICE_FORMAT    AUDIO_SAMPLE_S16LE
+
+#define PERIODSZ_PLAYBACK 1920
+#define BUFFERSZ_PLAYBACK 3840
+
+/* hw:0,0 */
+#define CAPTURE_CARD_ID               0
+#define CAPTURE_PCM_DEVICE_ID         0
+#define CAPTURE_PCM_DEVICE_CHANNELS   2
+#define CAPTURE_PCM_DEVICE_RATE       48000
+#define CAPTURE_PCM_DEVICE_FORMAT     AUDIO_SAMPLE_S16LE
+
+#define PERIODSZ_CAPTURE 1920
+#define BUFFERSZ_CAPTURE 3840
 
 #define MAX_DEVICES             5
 #define MAX_MODIFIERS           5

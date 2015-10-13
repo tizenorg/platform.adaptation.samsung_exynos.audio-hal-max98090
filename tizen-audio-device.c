@@ -28,6 +28,8 @@
 
 #include "tizen-audio-internal.h"
 
+/* #define DEBUG_TIMING */
+
 static device_type_t outDeviceTypes[] = {
     { AUDIO_DEVICE_OUT_SPEAKER, "Speaker" },
     { AUDIO_DEVICE_OUT_JACK, "Headphones" },
@@ -341,19 +343,69 @@ audio_return_t audio_alsa_pcm_close (void *userdata, void *pcm_handle)
     return audio_ret;
 }
 
-audio_return_t audio_pcm_open (void *userdata, void **pcm_handle, void *sample_spec, uint32_t direction)
+#ifdef __USE_TINYALSA__
+static struct pcm *__tinyalsa_open_device (audio_pcm_sample_spec_t *ss, size_t period_size, size_t period_count, uint32_t direction)
 {
-    audio_return_t audio_ret = AUDIO_RET_OK;
+    struct pcm *pcm = NULL;
+    struct pcm_config config;
+
+    config.channels          = ss->channels;
+    config.rate              = ss->rate;
+    config.period_size       = period_size;
+    config.period_count      = period_count;
+    config.format            = ss->format;
+    config.start_threshold   = 1024;
+    config.stop_threshold    = 0xFFFFFFFF;
+    config.silence_threshold = 0;
+
+    AUDIO_LOG_INFO("channels %d, rate %d, format %d, period_size %d, period_count %d", ss->channels, ss->rate, ss->format, period_size, period_count);
+
+    pcm = pcm_open((direction == AUDIO_DIRECTION_OUT) ? PLAYBACK_CARD_ID : CAPTURE_CARD_ID,
+                   (direction == AUDIO_DIRECTION_OUT) ? PLAYBACK_PCM_DEVICE_ID : CAPTURE_PCM_DEVICE_ID,
+                   (direction == AUDIO_DIRECTION_OUT) ? PCM_OUT : PCM_IN,
+                   &config);
+    if (!pcm || !pcm_is_ready(pcm)) {
+        AUDIO_LOG_ERROR("Unable to open device (%s)", pcm_get_error(pcm));
+        pcm_close(pcm);
+        return NULL;
+    }
+
+    return pcm;
+}
+#endif
+
+audio_return_t audio_pcm_open (void **pcm_handle, void *sample_spec, uint32_t direction, void *userdata)
+{
+#ifdef __USE_TINYALSA__
+    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_pcm_sample_spec_t *ss = (audio_pcm_sample_spec_t *)sample_spec;
+    size_t period_size, buffer_size;
+    ss->format = _convert_format((audio_sample_format_t)ss->format);
+    period_size = (direction == AUDIO_DIRECTION_OUT) ? PERIODSZ_PLAYBACK : PERIODSZ_CAPTURE;
+    buffer_size = (direction == AUDIO_DIRECTION_OUT) ? BUFFERSZ_PLAYBACK : BUFFERSZ_CAPTURE;
+
+    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+
+    *pcm_handle = __tinyalsa_open_device(ss, period_size, (buffer_size / period_size), direction);
+    if (*pcm_handle == NULL) {
+        AUDIO_LOG_ERROR("Error opening PCM device");
+        return AUDIO_ERR_RESOURCE;
+    }
+
+    am->device.pcm_count++;
+    AUDIO_LOG_INFO("Opening PCM handle 0x%x", *pcm_handle);
+#else  /* alsa-lib */
     char *device_name = NULL;
     audio_mgr_t *am = (audio_mgr_t *)userdata;
     audio_pcm_sample_spec_t *ss = (audio_pcm_sample_spec_t *)sample_spec;
     int err, mode;
-    uint8_t use_mmap=0;
-    snd_pcm_uframes_t period_size = PERIODSZ_PLAYBACK;
-    snd_pcm_uframes_t buffer_size = BUFFERSZ_PLAYBACK;
+    uint8_t use_mmap = 0;
+    snd_pcm_uframes_t period_size, buffer_size;
     snd_pcm_uframes_t avail_min = 1024;
     ss->format = _convert_format((audio_sample_format_t)ss->format);
     mode =  SND_PCM_NONBLOCK | SND_PCM_NO_AUTO_RESAMPLE | SND_PCM_NO_AUTO_CHANNELS | SND_PCM_NO_AUTO_FORMAT;
+    period_size = (direction == AUDIO_DIRECTION_OUT) ? PERIODSZ_PLAYBACK : PERIODSZ_CAPTURE;
+    buffer_size = (direction == AUDIO_DIRECTION_OUT) ? BUFFERSZ_PLAYBACK : BUFFERSZ_CAPTURE;
 
     AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
     if(direction == AUDIO_DIRECTION_OUT)
@@ -382,59 +434,212 @@ audio_return_t audio_pcm_open (void *userdata, void **pcm_handle, void *sample_s
         AUDIO_LOG_ERROR("Failed to set pcm sw parameters: %s", snd_strerror(err));
         return AUDIO_ERR_RESOURCE;
     }
-    return audio_ret;
+#endif
+
+    return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_close (void *userdata, void *pcm_handle)
+audio_return_t audio_pcm_start (void *pcm_handle, void *userdata)
 {
-    audio_return_t audio_ret = AUDIO_RET_OK;
+    int err;
+
+#ifdef __USE_TINYALSA__
+    if ((err = pcm_start(pcm_handle)) < 0) {
+        AUDIO_LOG_ERROR("Error starting PCM handle : %d", err);
+        return AUDIO_ERR_RESOURCE;
+    }
+#else  /* alsa-lib */
+    if ((err = snd_pcm_start(pcm_handle)) < 0) {
+        AUDIO_LOG_ERROR("Error starting PCM handle : %s", snd_strerror(err));
+        return AUDIO_ERR_RESOURCE;
+    }
+#endif
+
+    AUDIO_LOG_INFO("PCM handle 0x%x start", pcm_handle);
+    return AUDIO_RET_OK;
+}
+
+audio_return_t audio_pcm_stop (void *pcm_handle, void *userdata)
+{
+    int err;
+
+#ifdef __USE_TINYALSA__
+    if ((err = pcm_stop(pcm_handle)) < 0) {
+        AUDIO_LOG_ERROR("Error stopping PCM handle : %d", err);
+        return AUDIO_ERR_RESOURCE;
+    }
+#else  /* alsa-lib */
+    if ((err = snd_pcm_stop(pcm_handle)) < 0) {
+        AUDIO_LOG_ERROR("Error stopping PCM handle : %s", snd_strerror(err));
+        return AUDIO_ERR_RESOURCE;
+    }
+#endif
+
+    AUDIO_LOG_INFO("PCM handle 0x%x stop", pcm_handle);
+    return AUDIO_RET_OK;
+}
+
+audio_return_t audio_pcm_close (void *pcm_handle, void *userdata)
+{
     audio_mgr_t *am = (audio_mgr_t *)userdata;
     int err;
 
     AUDIO_LOG_INFO("Try to close PCM handle 0x%x", pcm_handle);
+
+#ifdef __USE_TINYALSA__
+    if ((err = pcm_close(pcm_handle)) < 0) {
+        AUDIO_LOG_ERROR("Error closing PCM handle : %d", err);
+        return AUDIO_ERR_RESOURCE;
+    }
+#else  /* alsa-lib */
     if ((err = snd_pcm_close(pcm_handle)) < 0) {
         AUDIO_LOG_ERROR("Error closing PCM handle : %s", snd_strerror(err));
         pthread_mutex_unlock(&am->device.pcm_lock);
         return AUDIO_ERR_RESOURCE;
     }
+#endif
+
+    pcm_handle = NULL;
     am->device.pcm_count--;
     AUDIO_LOG_INFO("PCM handle close success (count:%d)", am->device.pcm_count);
 
-    return audio_ret;
+    return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_avail(void *pcm_handle)
+audio_return_t audio_pcm_avail (void *pcm_handle, unsigned int *avail, void *userdata)
 {
-    snd_pcm_sframes_t n;
-    snd_pcm_sframes_t ret;
+#ifdef __USE_TINYALSA__
+    struct timespec tspec;
+    unsigned int frames_avail = 0;
+    int err;
 
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
-    while(1) {
-        n = snd_pcm_avail(pcm_handle);
-
-        if (n <= 0) {
-            ret = snd_pcm_wait(pcm_handle, 10);
-            if(ret == 0){
-                AUDIO_LOG_DEBUG("snd_pcm_wait = %d\n", ret);
-                continue;
-            }
-            else
-                break;
+    while (1) {
+        err = pcm_get_htimestamp(pcm_handle, &frames_avail, &tspec);
+        if (err < 0) {
+            AUDIO_LOG_ERROR("Could not get avail and timespec"); 
+            return AUDIO_ERR_IOCTL;
         }
-        break;
+
+        if (frames_avail <= 0) {
+            err = pcm_wait(pcm_handle, 10);
+            if (err == 0) {
+#ifdef DEBUG_TIMING
+                AUDIO_LOG_DEBUG("pcm_wait = %d\n", err);
+#endif
+                continue;
+            } else {
+                break;
+            }
+        } else {
+#ifdef DEBUG_TIMING
+            AUDIO_LOG_DEBUG("avail = %d\n", frames_avail);
+#endif
+            break;
+        }
     }
-    return 0;
+
+    *avail = frames_avail;
+#else  /* alsa-lib */
+    snd_pcm_sframes_t frames_avail;
+    snd_pcm_sframes_t err;
+
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
+
+    while (1) {
+        frames_avail= snd_pcm_avail(pcm_handle);
+
+        if (frames_avail <= 0) {
+            err = snd_pcm_wait(pcm_handle, 10);
+            if (err == 0) {
+#ifdef DEBUG_TIMING
+                AUDIO_LOG_DEBUG("snd_pcm_wait = %d\n", err);
+#endif
+                continue;
+            } else {
+                break;
+            }
+        } else {
+#ifdef DEBUG_TIMING
+            AUDIO_LOG_DEBUG("snd_pcm_avail = %d\n", frames_avail);
+#endif
+            break;
+        }
+    }
+
+    *avail = (unsigned int)frames_avail;
+#endif
+
+    return AUDIO_RET_OK;
 }
-audio_return_t audio_pcm_write(void *pcm_handle, const void *buffer, uint32_t frames)
+
+audio_return_t audio_pcm_write (void *pcm_handle, const void *buffer, uint32_t frames, void *userdata)
 {
+#ifdef __USE_TINYALSA__
+    int err;
+
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
+
+    err = pcm_write(pcm_handle, buffer, pcm_frames_to_bytes(pcm_handle, (unsigned int) frames));
+    if (err < 0) {
+        AUDIO_LOG_ERROR("Failed to write pcm : %d", err);
+        return AUDIO_ERR_IOCTL;
+    }
+
+#ifdef DEBUG_TIMING
+    AUDIO_LOG_DEBUG("audio_pcm_write = %d\n", frames);
+#endif
+#else  /* alsa-lib */
     snd_pcm_sframes_t frames_written;
 
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
     frames_written = snd_pcm_writei(pcm_handle, buffer, (snd_pcm_uframes_t) frames);
     if (frames_written < 0) {
-        AUDIO_LOG_ERROR("Failed to pcm write: try_recover!!!!");
+        AUDIO_LOG_ERROR("Failed to write pcm");
+        return AUDIO_ERR_IOCTL;
     }
-    return 0;
+
+#ifdef DEBUG_TIMING
+    AUDIO_LOG_DEBUG("audio_pcm_write = (%d / %d)\n", frames_written, frames);
+#endif
+#endif
+
+    return AUDIO_RET_OK;
+}
+
+audio_return_t audio_pcm_read (void *pcm_handle, void *buffer, uint32_t frames, void *userdata)
+{
+#ifdef __USE_TINYALSA__
+    int err;
+
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
+
+    err = pcm_read(pcm_handle, buffer, pcm_frames_to_bytes(pcm_handle, (unsigned int) frames));
+    if (err < 0) {
+        AUDIO_LOG_ERROR("Failed to read pcm : %d", err);
+        return AUDIO_ERR_IOCTL;
+    }
+
+#ifdef DEBUG_TIMING
+    AUDIO_LOG_DEBUG("audio_pcm_read = %d\n", frames);
+#endif
+#else  /* alsa-lib */
+    snd_pcm_sframes_t frames_read;
+
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
+
+    frames_read = snd_pcm_readi(pcm_handle, buffer, (snd_pcm_uframes_t) frames);
+    if (frames_read < 0) {
+        AUDIO_LOG_ERROR("Failed to read pcm");
+        return AUDIO_ERR_IOCTL;
+    }
+
+#ifdef DEBUG_TIMING
+    AUDIO_LOG_DEBUG("audio_pcm_read = (%d / %d)\n", frames_read, frames);
+#endif
+#endif
+
+    return AUDIO_RET_OK;
 }
