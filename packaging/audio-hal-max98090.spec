@@ -1,6 +1,6 @@
 Name:       audio-hal-max98090
 Summary:    TIZEN Audio HAL for MAX98090
-Version:    0.2.9
+Version:    0.2.10
 Release:    0
 Group:      System/Libraries
 License:    Apache-2.0
@@ -10,6 +10,7 @@ BuildRequires: pkgconfig(vconf)
 BuildRequires: pkgconfig(iniparser)
 BuildRequires: pkgconfig(dlog)
 BuildRequires: pkgconfig(alsa)
+#BuildRequires: pkgconfig(tinyalsa)
 Provides: libtizen-audio.so
 
 %description
@@ -22,6 +23,8 @@ TIZEN Audio HAL for MAX98090
 export CFLAGS="$CFLAGS -DTIZEN_DEBUG_ENABLE"
 export CXXFLAGS="$CXXFLAGS -DTIZEN_DEBUG_ENABLE"
 export FFLAGS="$FFLAGS -DTIZEN_DEBUG_ENABLE"
+
+export USE_TINYALSA="0"
 
 %autogen
 %configure
