@@ -120,24 +120,12 @@ typedef struct device_type {
 #define CAPTURE_PCM_DEVICE      "hw:0,0"
 
 /* hw:0,0 */
-#define PLAYBACK_CARD_ID              0
-#define PLAYBACK_PCM_DEVICE_ID        0
-#define PLAYBACK_PCM_DEVICE_CHANNELS  2
-#define PLAYBACK_PCM_DEVICE_RATE      48000
-#define PLAYBACK_PCM_DEVICE_FORMAT    AUDIO_SAMPLE_S16LE
-
-#define PERIODSZ_PLAYBACK 1920
-#define BUFFERSZ_PLAYBACK 3840
+#define PLAYBACK_CARD_ID        0
+#define PLAYBACK_PCM_DEVICE_ID  0
 
 /* hw:0,0 */
-#define CAPTURE_CARD_ID               0
-#define CAPTURE_PCM_DEVICE_ID         0
-#define CAPTURE_PCM_DEVICE_CHANNELS   2
-#define CAPTURE_PCM_DEVICE_RATE       48000
-#define CAPTURE_PCM_DEVICE_FORMAT     AUDIO_SAMPLE_S16LE
-
-#define PERIODSZ_CAPTURE 1920
-#define BUFFERSZ_CAPTURE 3840
+#define CAPTURE_CARD_ID         0
+#define CAPTURE_PCM_DEVICE_ID   0
 
 #define MAX_DEVICES             5
 #define MAX_MODIFIERS           5
