@@ -147,6 +147,11 @@ audio_return_t _audio_device_init (audio_mgr_t *am)
     am->device.mode = VERB_NORMAL;
     pthread_mutex_init(&am->device.pcm_lock, NULL);
     am->device.pcm_count = 0;
+    am->device.ss.format = -1;
+    am->device.ss.channels = 0;
+    am->device.ss.rate = 0;
+    am->device.nfrags = 0;
+    am->device.frag_size = 0;
 
     return AUDIO_RET_OK;
 }
@@ -641,5 +646,46 @@ audio_return_t audio_pcm_read (void *userdata, void *pcm_handle, void *buffer, u
 #endif
 #endif
 
+    return AUDIO_RET_OK;
+}
+
+audio_return_t audio_pcm_get_fd(void *userdata, void *pcm_handle, int *fd)
+{
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
+
+#ifdef __USE_TINYALSA__
+    *fd = (pcm *)pcm_handle->fd;
+#else  /* alsa-lib */
+    *fd = _snd_pcm_poll_descriptor((snd_pcm_t *)pcm_handle);
+#endif
+
+    return AUDIO_RET_OK;
+}
+audio_return_t audio_pcm_recover(void *userdata, void *pcm_handle, int err)
+{
+    // TODO:
+    AUDIO_LOG_DEBUG("audio_pcm_recover");
+    return AUDIO_RET_OK;
+}
+
+audio_return_t audio_pcm_get_params(void *userdata, void *pcm_handle, uint32_t direction, void **sample_spec, uint32_t *frag_size, uint32_t *nfrags)
+{
+    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_pcm_sample_spec_t *ss = (audio_pcm_sample_spec_t *)*sample_spec;
+    ss = &(am->device.ss);
+    *frag_size = am->device.frag_size;
+    *nfrags = am->device.nfrags;
+    AUDIO_LOG_DEBUG("audio_pcm_get_params : format=%d, channels=%d, rate=%d, frag_size=%d, nfrags=%d", ss->format, ss->channels, ss->rate, *frag_size, *nfrags);
+    return AUDIO_RET_OK;
+}
+
+audio_return_t audio_pcm_set_params(void *userdata, void *pcm_handle, uint32_t direction, void *sample_spec, uint32_t frag_size, uint32_t nfrags)
+{
+    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_pcm_sample_spec_t *ss = (audio_pcm_sample_spec_t *)sample_spec;
+    am->device.ss = *ss;
+    am->device.frag_size = frag_size;
+    am->device.nfrags = nfrags;
+    AUDIO_LOG_DEBUG("audio_pcm_set_params : format=%d, channels=%d, rate=%d, frag_size=%d, nfrags=%d", am->device.ss.format, am->device.ss.channels, am->device.ss.rate, am->device.frag_size, am->device.nfrags);
     return AUDIO_RET_OK;
 }

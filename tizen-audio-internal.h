@@ -173,6 +173,11 @@ typedef struct audio_device_mgr {
     pthread_mutex_t pcm_lock;
     uint32_t pcm_count;
     audio_route_mode_t mode;
+
+    /* Parameters of PCM device */
+    audio_pcm_sample_spec_t ss;
+    uint32_t nfrags;
+    uint32_t frag_size;
 } audio_device_mgr_t;
 
 
