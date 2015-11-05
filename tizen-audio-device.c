@@ -643,3 +643,49 @@ audio_return_t audio_pcm_read (void *userdata, void *pcm_handle, void *buffer, u
 
     return AUDIO_RET_OK;
 }
+
+audio_return_t audio_pcm_get_fd(void *userdata, void *pcm_handle, int *fd)
+{
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
+
+#ifdef __USE_TINYALSA__
+    *fd = (pcm *)pcm_handle->fd;
+#else  /* alsa-lib */
+    *fd = _snd_pcm_poll_descriptor((snd_pcm_t *)pcm_handle);
+#endif
+
+    return AUDIO_RET_OK;
+}
+audio_return_t audio_pcm_recover(void *userdata, void *pcm_handle, int err)
+{
+    // TODO:
+    AUDIO_LOG_DEBUG("audio_pcm_recover");
+    return AUDIO_RET_OK;
+}
+
+audio_return_t audio_pcm_get_params(void *userdata, void *pcm_handle, uint32_t direction, void **sample_spec, uint32_t *frag_size, uint32_t *nfrags)
+{
+    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_pcm_sample_spec_t *ss = (audio_pcm_sample_spec_t *)*sample_spec;
+
+    if (direction == AUDIO_DIRECTION_OUT) {
+        *frag_size = PERIODSZ_PLAYBACK * _audio_sample_size(ss->format) * ss->channels;
+        *nfrags = BUFFERSZ_PLAYBACK / PERIODSZ_PLAYBACK;
+    } else if (direction == AUDIO_DIRECTION_IN) {
+        *frag_size = PERIODSZ_CAPTURE * _audio_sample_size(ss->format) * ss->channels;
+        *nfrags = BUFFERSZ_CAPTURE / PERIODSZ_CAPTURE;
+    } else {
+        AUDIO_LOG_DEBUG("Parameters are invalid");
+        return AUDIO_ERR_PARAMETER;
+    }
+
+    AUDIO_LOG_DEBUG("audio_pcm_get_params : format=%d, channels=%d, rate=%d, frag_size=%d, nfrags=%d", ss->format, ss->channels, ss->rate, *frag_size, *nfrags);
+    return AUDIO_RET_OK;
+}
+
+audio_return_t audio_pcm_set_params(void *userdata, void *pcm_handle, uint32_t direction, void *sample_spec, uint32_t frag_size, uint32_t nfrags)
+{
+    // TODO:
+    AUDIO_LOG_DEBUG("audio_pcm_recover");
+    return AUDIO_RET_OK;
+}
