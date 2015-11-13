@@ -167,7 +167,6 @@ typedef enum audio_route_mode{
 typedef struct audio_device_mgr {
     uint32_t active_in;
     uint32_t active_out;
-    uint32_t route_flag;
     snd_pcm_t *pcm_in;
     snd_pcm_t *pcm_out;
     pthread_mutex_t pcm_lock;
@@ -214,7 +213,6 @@ typedef struct audio_mixer_mgr {
 
 typedef struct audio_mgr {
     void *platform_data;
-    audio_cb_interface_t cb_intf;
     audio_device_mgr_t device;
     audio_volume_mgr_t volume;
     audio_ucm_mgr_t ucm;

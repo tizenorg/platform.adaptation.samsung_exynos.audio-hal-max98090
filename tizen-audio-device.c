@@ -141,7 +141,6 @@ audio_return_t _audio_device_init (audio_mgr_t *am)
 
     am->device.active_in = 0x0;
     am->device.active_out = 0x0;
-    am->device.route_flag = AUDIO_ROUTE_FLAG_NONE;
     am->device.pcm_in = NULL;
     am->device.pcm_out = NULL;
     am->device.mode = VERB_NORMAL;
@@ -297,48 +296,6 @@ audio_return_t audio_update_route_option (void *userdata, audio_route_option_t *
     AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
 
     AUDIO_LOG_INFO("role:%s, name:%s, value:%d", option->role, option->name, option->value);
-
-    return audio_ret;
-}
-
-audio_return_t audio_alsa_pcm_open (void *userdata, void **pcm_handle, char *device_name, uint32_t direction, int mode)
-{
-    audio_return_t audio_ret = AUDIO_RET_OK;
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
-    int err;
-
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
-
-//    pthread_mutex_lock(&am->device.pcm_lock);
-   if ((err = snd_pcm_open((snd_pcm_t **)pcm_handle, device_name, (direction == AUDIO_DIRECTION_OUT) ? SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE, mode)) < 0) {
-        AUDIO_LOG_ERROR("Error opening PCM device %s: %s", device_name, snd_strerror(err));
-        pthread_mutex_unlock(&am->device.pcm_lock);
-        return AUDIO_ERR_RESOURCE;
-    }
-    am->device.pcm_count++;
-    AUDIO_LOG_INFO("PCM handle 0x%x(%s,%s) opened(count:%d)", *pcm_handle, device_name, (direction == AUDIO_DIRECTION_OUT) ? "playback" : "capture", am->device.pcm_count);
-//    pthread_mutex_unlock(&am->device.pcm_lock);
-
-    return audio_ret;
-}
-
-audio_return_t audio_alsa_pcm_close (void *userdata, void *pcm_handle)
-{
-    audio_return_t audio_ret = AUDIO_RET_OK;
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
-    int err;
-
-    AUDIO_LOG_INFO("Try to close PCM handle 0x%x", pcm_handle);
-//    pthread_mutex_lock(&am->device.pcm_lock);
-    if ((err = snd_pcm_close(pcm_handle)) < 0) {
-        AUDIO_LOG_ERROR("Error closing PCM handle : %s", snd_strerror(err));
-        pthread_mutex_unlock(&am->device.pcm_lock);
-        return AUDIO_ERR_RESOURCE;
-    }
-
-    am->device.pcm_count--;
-    AUDIO_LOG_INFO("PCM handle close success (count:%d)", am->device.pcm_count);
-//    pthread_mutex_unlock(&am->device.pcm_lock);
 
     return audio_ret;
 }
