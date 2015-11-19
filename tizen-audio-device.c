@@ -311,7 +311,7 @@ static struct pcm *__tinyalsa_open_device (audio_pcm_sample_spec_t *ss, size_t p
     config.period_size       = period_size;
     config.period_count      = period_count;
     config.format            = ss->format;
-    config.start_threshold   = 1024;
+    config.start_threshold   = period_size;
     config.stop_threshold    = 0xFFFFFFFF;
     config.silence_threshold = 0;
 
@@ -334,15 +334,17 @@ static struct pcm *__tinyalsa_open_device (audio_pcm_sample_spec_t *ss, size_t p
 audio_return_t audio_pcm_open (void *userdata, void **pcm_handle, uint32_t direction, void *sample_spec, uint32_t period_size, uint32_t periods)
 {
 #ifdef __USE_TINYALSA__
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
-    audio_pcm_sample_spec_t *ss = (audio_pcm_sample_spec_t *)sample_spec;
+    audio_mgr_t *am;
+    audio_pcm_sample_spec_t *ss;
     int err;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
-    AUDIO_RETURN_VAL_IF_FAIL(ss, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(userdata, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(sample_spec, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL((period_size > 0), AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL((periods > 0), AUDIO_ERR_PARAMETER);
 
+    am = (audio_mgr_t *)userdata;
+    ss = (audio_pcm_sample_spec_t *)sample_spec;
     ss->format = _convert_format((audio_sample_format_t)ss->format);
 
     *pcm_handle = __tinyalsa_open_device(ss, (size_t)period_size, (size_t)periods, direction);
@@ -358,19 +360,18 @@ audio_return_t audio_pcm_open (void *userdata, void **pcm_handle, uint32_t direc
     am->device.pcm_count++;
     AUDIO_LOG_INFO("Opening PCM handle 0x%x", *pcm_handle);
 #else  /* alsa-lib */
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
-    audio_pcm_sample_spec_t *ss = (audio_pcm_sample_spec_t *)sample_spec;
+    audio_mgr_t *am;
     int err, mode;
     char *device_name = NULL;
     uint8_t use_mmap = 0;
     snd_pcm_uframes_t buffer_size;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
-    AUDIO_RETURN_VAL_IF_FAIL(ss, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(userdata, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(sample_spec, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL((period_size > 0), AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL((periods > 0), AUDIO_ERR_PARAMETER);
 
-    ss->format = _convert_format((audio_sample_format_t)ss->format);
+    am = (audio_mgr_t *)userdata;
     mode =  SND_PCM_NONBLOCK | SND_PCM_NO_AUTO_RESAMPLE | SND_PCM_NO_AUTO_CHANNELS | SND_PCM_NO_AUTO_FORMAT;
     buffer_size = (snd_pcm_uframes_t)(period_size * periods);
 
@@ -388,21 +389,7 @@ audio_return_t audio_pcm_open (void *userdata, void **pcm_handle, uint32_t direc
         return AUDIO_ERR_RESOURCE;
     }
 
-    if ((err = _audio_pcm_set_hw_params((snd_pcm_t *)*pcm_handle, ss, &use_mmap, &period_size, &buffer_size)) != AUDIO_RET_OK) {
-        AUDIO_LOG_ERROR("Failed to set pcm hw parameters : %s", snd_strerror(err));
-        return AUDIO_ERR_RESOURCE;
-    }
-
-    AUDIO_LOG_INFO("setting avail_min : %d", period_size);
-    if ((err = _audio_pcm_set_sw_params((snd_pcm_t *)*pcm_handle, (snd_pcm_uframes_t)period_size, 1)) < 0) {
-        AUDIO_LOG_ERROR("Failed to set pcm sw parameters : %s", snd_strerror(err));
-        return AUDIO_ERR_RESOURCE;
-    }
-
-    if ((err = snd_pcm_prepare((snd_pcm_t *)*pcm_handle)) != 0) {
-        AUDIO_LOG_ERROR("Error prepare PCM device : %d", err);
-        return AUDIO_ERR_RESOURCE;
-    }
+    audio_pcm_set_params(userdata, *pcm_handle, direction, sample_spec, period_size, periods);
 
     am->device.pcm_count++;
     AUDIO_LOG_INFO("Opening PCM handle 0x%x, PCM device %s", *pcm_handle, device_name);
