@@ -68,6 +68,12 @@
         return val; \
     } \
 } while (0)
+#define AUDIO_RETURN_NULL_IF_FAIL(expr) do { \
+    if (!expr) { \
+        AUDIO_LOG_ERROR("%s failed", #expr); \
+        return NULL; \
+    } \
+} while (0)
 
 /* Devices : Normal  */
 enum audio_device_type {
@@ -142,7 +148,35 @@ typedef struct {
 } audio_pcm_sample_spec_t;
 
 /* Device */
-typedef enum audio_route_mode{
+typedef enum audio_device_api {
+    AUDIO_DEVICE_API_UNKNOWN,
+    AUDIO_DEVICE_API_ALSA,
+    AUDIO_DEVICE_API_BLUEZ,
+} audio_device_api_t;
+
+typedef struct audio_device_alsa_info {
+    char *card_name;
+    uint32_t card_idx;
+    uint32_t device_idx;
+} audio_device_alsa_info_t;
+
+typedef struct audio_device_bluz_info {
+    char *protocol;
+    uint32_t nrec;
+} audio_device_bluez_info_t;
+
+typedef struct audio_device_info {
+    audio_device_api_t api;
+    audio_direction_t direction;
+    char *name;
+    uint8_t is_default_device;
+    union {
+        audio_device_alsa_info_t alsa;
+        audio_device_bluez_info_t bluez;
+    };
+} audio_device_info_t;
+
+typedef enum audio_route_mode {
     VERB_NORMAL,
 
 /* Add verb mode if you need */
@@ -152,7 +186,7 @@ typedef enum audio_route_mode{
 
 } audio_route_mode_t;
 
-typedef struct audio_device_mgr {
+typedef struct audio_hal_device {
     uint32_t active_in;
     uint32_t active_out;
     snd_pcm_t *pcm_in;
@@ -160,12 +194,38 @@ typedef struct audio_device_mgr {
     pthread_mutex_t pcm_lock;
     uint32_t pcm_count;
     audio_route_mode_t mode;
-} audio_device_mgr_t;
+} audio_hal_device_t;
 
 
 /* Stream */
-
 #define AUDIO_VOLUME_LEVEL_MAX 16
+
+typedef enum audio_volume {
+    AUDIO_VOLUME_TYPE_SYSTEM,           /**< System volume type */
+    AUDIO_VOLUME_TYPE_NOTIFICATION,     /**< Notification volume type */
+    AUDIO_VOLUME_TYPE_ALARM,            /**< Alarm volume type */
+    AUDIO_VOLUME_TYPE_RINGTONE,         /**< Ringtone volume type */
+    AUDIO_VOLUME_TYPE_MEDIA,            /**< Media volume type */
+    AUDIO_VOLUME_TYPE_CALL,             /**< Call volume type */
+    AUDIO_VOLUME_TYPE_VOIP,             /**< VOIP volume type */
+    AUDIO_VOLUME_TYPE_VOICE,            /**< Voice volume type */
+    AUDIO_VOLUME_TYPE_MAX,              /**< Volume type count */
+} audio_volume_t;
+
+typedef enum audio_gain {
+    AUDIO_GAIN_TYPE_DEFAULT,
+    AUDIO_GAIN_TYPE_DIALER,
+    AUDIO_GAIN_TYPE_TOUCH,
+    AUDIO_GAIN_TYPE_AF,
+    AUDIO_GAIN_TYPE_SHUTTER1,
+    AUDIO_GAIN_TYPE_SHUTTER2,
+    AUDIO_GAIN_TYPE_CAMCODING,
+    AUDIO_GAIN_TYPE_MIDI,
+    AUDIO_GAIN_TYPE_BOOTING,
+    AUDIO_GAIN_TYPE_VIDEO,
+    AUDIO_GAIN_TYPE_TTS,
+    AUDIO_GAIN_TYPE_MAX,
+} audio_gain_t;
 
 typedef struct audio_volume_value_table {
     double volume[AUDIO_VOLUME_TYPE_MAX][AUDIO_VOLUME_LEVEL_MAX];
@@ -178,16 +238,16 @@ enum {
     AUDIO_VOLUME_DEVICE_MAX,
 };
 
-typedef struct audio_volume_mgr {
+typedef struct audio_hal_volume {
     uint32_t volume_level[AUDIO_VOLUME_TYPE_MAX];
     audio_volume_value_table_t *volume_value_table;
-} audio_volume_mgr_t;
+} audio_hal_volume_t;
 
-typedef struct audio_ucm_mgr {
+typedef struct audio_hal_ucm {
     snd_use_case_mgr_t* uc_mgr;
-} audio_ucm_mgr_t;
+} audio_hal_ucm_t;
 
-typedef struct audio_mixer_mgr {
+typedef struct audio_hal_mixer {
     snd_mixer_t *mixer;
     pthread_mutex_t mutex;
     struct {
@@ -195,16 +255,34 @@ typedef struct audio_mixer_mgr {
         snd_ctl_elem_id_t *id;
         snd_ctl_elem_info_t *info;
     } control;
-} audio_mixer_mgr_t;
+} audio_hal_mixer_t;
+
+/* Audio format */
+typedef enum audio_sample_format {
+    AUDIO_SAMPLE_U8,
+    AUDIO_SAMPLE_ALAW,
+    AUDIO_SAMPLE_ULAW,
+    AUDIO_SAMPLE_S16LE,
+    AUDIO_SAMPLE_S16BE,
+    AUDIO_SAMPLE_FLOAT32LE,
+    AUDIO_SAMPLE_FLOAT32BE,
+    AUDIO_SAMPLE_S32LE,
+    AUDIO_SAMPLE_S32BE,
+    AUDIO_SAMPLE_S24LE,
+    AUDIO_SAMPLE_S24BE,
+    AUDIO_SAMPLE_S24_32LE,
+    AUDIO_SAMPLE_S24_32BE,
+    AUDIO_SAMPLE_MAX,
+    AUDIO_SAMPLE_INVALID = -1
+} audio_sample_format_t;
 
 /* Overall */
-
-typedef struct audio_mgr {
-    audio_device_mgr_t device;
-    audio_volume_mgr_t volume;
-    audio_ucm_mgr_t ucm;
-    audio_mixer_mgr_t mixer;
-} audio_mgr_t;
+typedef struct audio_hal {
+    audio_hal_device_t device;
+    audio_hal_volume_t volume;
+    audio_hal_ucm_t ucm;
+    audio_hal_mixer_t mixer;
+} audio_hal_t;
 
 typedef struct {
     unsigned short      is_open; /* if is_open is true, open device; else close device.*/
@@ -217,28 +295,28 @@ typedef struct samplerate_ctrl {
     unsigned int samplerate; /* change samplerate.*/
 } set_samplerate_t;
 
-audio_return_t _audio_volume_init (audio_mgr_t *am);
-audio_return_t _audio_volume_deinit (audio_mgr_t *am);
+audio_return_t _audio_volume_init(audio_hal_t *ah);
+audio_return_t _audio_volume_deinit(audio_hal_t *ah);
 
-audio_return_t _audio_device_init (audio_mgr_t *am);
-audio_return_t _audio_device_deinit (audio_mgr_t * am);
-audio_return_t _audio_ucm_init (audio_mgr_t *am);
-audio_return_t _audio_ucm_deinit (audio_mgr_t *am);
-void _audio_ucm_get_device_name (audio_mgr_t *am, const char *use_case, audio_direction_t direction, const char **value);
+audio_return_t _audio_device_init(audio_hal_t *ah);
+audio_return_t _audio_device_deinit(audio_hal_t * ah);
+audio_return_t _audio_ucm_init(audio_hal_t *ah);
+audio_return_t _audio_ucm_deinit(audio_hal_t *ah);
+void _audio_ucm_get_device_name(audio_hal_t *ah, const char *use_case, audio_direction_t direction, const char **value);
 #define _audio_ucm_update_use_case _audio_ucm_set_use_case
-audio_return_t _audio_ucm_set_use_case (audio_mgr_t *am, const char *verb, const char *devices[], const char *modifiers[]);
-audio_return_t _audio_ucm_set_devices (audio_mgr_t *am, const char *verb, const char *devices[]);
-audio_return_t _audio_ucm_set_modifiers (audio_mgr_t *am, const char *verb, const char *modifiers[]);
-int _audio_ucm_fill_device_info_list (audio_mgr_t *am, audio_device_info_t *device_info_list, const char *verb);
-audio_return_t _audio_ucm_get_verb (audio_mgr_t *am, const char **value);
-audio_return_t _audio_ucm_reset_use_case (audio_mgr_t *am);
-audio_return_t _audio_util_init (audio_mgr_t *am);
-audio_return_t _audio_util_deinit (audio_mgr_t *am);
-audio_return_t _audio_mixer_control_set_param(audio_mgr_t *am, const char* ctl_name, snd_ctl_elem_value_t* value, int size);
-audio_return_t _audio_mixer_control_set_value(audio_mgr_t *am, const char *ctl_name, int val);
-audio_return_t _audio_mixer_control_set_value_string(audio_mgr_t *am, const char* ctl_name, const char* value);
-audio_return_t _audio_mixer_control_get_value(audio_mgr_t *am, const char *ctl_name, int *val);
-audio_return_t _audio_mixer_control_get_element(audio_mgr_t *am, const char *ctl_name, snd_hctl_elem_t **elem);
+audio_return_t _audio_ucm_set_use_case(audio_hal_t *ah, const char *verb, const char *devices[], const char *modifiers[]);
+audio_return_t _audio_ucm_set_devices(audio_hal_t *ah, const char *verb, const char *devices[]);
+audio_return_t _audio_ucm_set_modifiers(audio_hal_t *ah, const char *verb, const char *modifiers[]);
+int _audio_ucm_fill_device_info_list(audio_hal_t *ah, audio_device_info_t *device_info_list, const char *verb);
+audio_return_t _audio_ucm_get_verb(audio_hal_t *ah, const char **value);
+audio_return_t _audio_ucm_reset_use_case(audio_hal_t *ah);
+audio_return_t _audio_util_init(audio_hal_t *ah);
+audio_return_t _audio_util_deinit(audio_hal_t *ah);
+audio_return_t _audio_mixer_control_set_param(audio_hal_t *ah, const char* ctl_name, snd_ctl_elem_value_t* value, int size);
+audio_return_t _audio_mixer_control_set_value(audio_hal_t *ah, const char *ctl_name, int val);
+audio_return_t _audio_mixer_control_set_value_string(audio_hal_t *ah, const char* ctl_name, const char* value);
+audio_return_t _audio_mixer_control_get_value(audio_hal_t *ah, const char *ctl_name, int *val);
+audio_return_t _audio_mixer_control_get_element(audio_hal_t *ah, const char *ctl_name, snd_hctl_elem_t **elem);
 audio_return_t _audio_pcm_set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t avail_min, uint8_t period_event);
 audio_return_t _audio_pcm_set_hw_params(snd_pcm_t *pcm, audio_pcm_sample_spec_t *sample_spec, uint8_t *use_mmap, snd_pcm_uframes_t *period_size, snd_pcm_uframes_t *buffer_size);
 uint32_t _convert_format(audio_sample_format_t format);
