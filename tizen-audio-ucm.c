@@ -37,46 +37,57 @@
 #define SND_USE_CASE_SET snd_use_case_set
 #endif
 
-audio_return_t _audio_ucm_init (audio_mgr_t *am)
+audio_return_t _audio_ucm_init (audio_hal_t *ah)
 {
-    snd_use_case_mgr_open(&am->ucm.uc_mgr, ALSA_DEFAULT_CARD);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
 
-    if (!am->ucm.uc_mgr) {
+    snd_use_case_mgr_open(&ah->ucm.uc_mgr, ALSA_DEFAULT_CARD);
+
+    if (!ah->ucm.uc_mgr) {
         AUDIO_LOG_ERROR("uc_mgr open failed");
         return AUDIO_ERR_RESOURCE;
     }
     return AUDIO_RET_OK;
 }
 
-audio_return_t _audio_ucm_deinit (audio_mgr_t *am)
+audio_return_t _audio_ucm_deinit (audio_hal_t *ah)
 {
-    if (am->ucm.uc_mgr != NULL) {
-        snd_use_case_mgr_close(am->ucm.uc_mgr);
-        am->ucm.uc_mgr = NULL;
-    }
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->ucm.uc_mgr, AUDIO_ERR_PARAMETER);
+
+    snd_use_case_mgr_close(ah->ucm.uc_mgr);
+    ah->ucm.uc_mgr = NULL;
 
     return AUDIO_RET_OK;
 }
 
-void _audio_ucm_get_device_name (audio_mgr_t *am, const char *use_case, audio_direction_t direction, const char **value)
+void _audio_ucm_get_device_name (audio_hal_t *ah, const char *use_case, audio_direction_t direction, const char **value)
 {
     char identifier[70] = {0};
+
+    AUDIO_RETURN_IF_FAIL(ah);
+    AUDIO_RETURN_IF_FAIL(ah->ucm.uc_mgr);
 
     if (direction == AUDIO_DIRECTION_IN) {
         sprintf(identifier, "CapturePCM//%s", use_case);
     } else {
         sprintf(identifier, "PlaybackPCM//%s", use_case);
     }
-    snd_use_case_get(am->ucm.uc_mgr, identifier, value);
+    snd_use_case_get(ah->ucm.uc_mgr, identifier, value);
 }
 
-static inline void __add_ucm_device_info (audio_mgr_t *am, const char *use_case, audio_direction_t direction, audio_device_info_t *device_info_list, int *device_info_count)
+static inline void __add_ucm_device_info (audio_hal_t *ah, const char *use_case, audio_direction_t direction, audio_device_info_t *device_info_list, int *device_info_count)
 {
     audio_device_info_t *device_info;
     const char *device_name = NULL;
     char *needle = NULL;
 
-    _audio_ucm_get_device_name(am, use_case, direction, &device_name);
+    AUDIO_RETURN_IF_FAIL(ah);
+    AUDIO_RETURN_IF_FAIL(ah->ucm.uc_mgr);
+    AUDIO_RETURN_IF_FAIL(device_info_list);
+    AUDIO_RETURN_IF_FAIL(device_info_count);
+
+    _audio_ucm_get_device_name(ah, use_case, direction, &device_name);
     if (device_name) {
         device_info = &device_info_list[(*device_info_count)++];
 
@@ -95,19 +106,23 @@ static inline void __add_ucm_device_info (audio_mgr_t *am, const char *use_case,
     }
 }
 
-int _audio_ucm_fill_device_info_list (audio_mgr_t *am, audio_device_info_t *device_info_list, const char *verb)
+int _audio_ucm_fill_device_info_list (audio_hal_t *ah, audio_device_info_t *device_info_list, const char *verb)
 {
     int device_info_count = 0;
     const char *curr_verb = NULL;
 
+    AUDIO_RETURN_VAL_IF_FAIL(ah, device_info_count);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->ucm.uc_mgr, device_info_count);
+    AUDIO_RETURN_VAL_IF_FAIL(device_info_list, device_info_count);
+
     if (!verb) {
-        snd_use_case_get(am->ucm.uc_mgr, "_verb", &curr_verb);
+        snd_use_case_get(ah->ucm.uc_mgr, "_verb", &curr_verb);
         verb = curr_verb;
     }
 
     if (verb) {
-        __add_ucm_device_info(am, verb, AUDIO_DIRECTION_IN, device_info_list, &device_info_count);
-        __add_ucm_device_info(am, verb, AUDIO_DIRECTION_OUT, device_info_list, &device_info_count);
+        __add_ucm_device_info(ah, verb, AUDIO_DIRECTION_IN, device_info_list, &device_info_count);
+        __add_ucm_device_info(ah, verb, AUDIO_DIRECTION_OUT, device_info_list, &device_info_count);
 
         if (curr_verb)
             free((void *)curr_verb);
@@ -187,7 +202,7 @@ static inline int __set_use_case_with_time(snd_use_case_mgr_t *uc_mgr, const cha
    2) If verb is changed
       -> Reset, set new verb, enable devices & modifiers
  */
-audio_return_t _audio_ucm_set_use_case (audio_mgr_t *am, const char *verb, const char *devices[], const char *modifiers[])
+audio_return_t _audio_ucm_set_use_case(audio_hal_t *ah, const char *verb, const char *devices[], const char *modifiers[])
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     int is_verb_changed = 0, is_dev_changed = 0, is_mod_changed = 0;
@@ -201,12 +216,13 @@ audio_return_t _audio_ucm_set_use_case (audio_mgr_t *am, const char *verb, const
     int i = 0, j = 0;
     char dump_str[512];
 
-    if (!am->ucm.uc_mgr || !verb)
-        return AUDIO_ERR_PARAMETER;
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->ucm.uc_mgr, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(verb, AUDIO_ERR_PARAMETER);
 
-    snd_use_case_get(am->ucm.uc_mgr, "_verb", &old_verb);
-    old_dev_count = snd_use_case_get_list(am->ucm.uc_mgr, "_enadevs", &old_dev_list);
-    old_mod_count = snd_use_case_get_list(am->ucm.uc_mgr, "_enamods", &old_mod_list);
+    snd_use_case_get(ah->ucm.uc_mgr, "_verb", &old_verb);
+    old_dev_count = snd_use_case_get_list(ah->ucm.uc_mgr, "_enadevs", &old_dev_list);
+    old_mod_count = snd_use_case_get_list(ah->ucm.uc_mgr, "_enamods", &old_mod_list);
     __dump_use_case(old_verb, old_dev_list, old_dev_count, old_mod_list, old_mod_count, &dump_str[0]);
     AUDIO_LOG_INFO(">>> UCM current %s", dump_str);
 
@@ -319,28 +335,28 @@ audio_return_t _audio_ucm_set_use_case (audio_mgr_t *am, const char *verb, const
         /* disable modifiers */
         for (i = 0; i < dis_mod_count; i++) {
             AUDIO_LOG_INFO("Disable modifier : %s", dis_mod_list[i]);
-            if (snd_use_case_set(am->ucm.uc_mgr, "_dismod", dis_mod_list[i]) < 0)
+            if (snd_use_case_set(ah->ucm.uc_mgr, "_dismod", dis_mod_list[i]) < 0)
                 AUDIO_LOG_ERROR("disable %s modifier failed", dis_mod_list[i]);
         }
 
         /* disable devices */
         for (i = 0; i < dis_dev_count; i++) {
             AUDIO_LOG_INFO("Disable device : %s", dis_dev_list[i]);
-            if (snd_use_case_set(am->ucm.uc_mgr, "_disdev", dis_dev_list[i]) < 0)
+            if (snd_use_case_set(ah->ucm.uc_mgr, "_disdev", dis_dev_list[i]) < 0)
                 AUDIO_LOG_ERROR("disable %s device failed", dis_dev_list[i]);
         }
 
         /* enable devices */
         for (i = 0; i < ena_dev_count; i++) {
             AUDIO_LOG_INFO("Enable device : %s", ena_dev_list[i]);
-            if (snd_use_case_set(am->ucm.uc_mgr, "_enadev", ena_dev_list[i]) < 0)
+            if (snd_use_case_set(ah->ucm.uc_mgr, "_enadev", ena_dev_list[i]) < 0)
                 AUDIO_LOG_ERROR("enable %s device failed", ena_dev_list[i]);
         }
 
         /* enable modifiers */
         for (i = 0; i < ena_mod_count; i++) {
             AUDIO_LOG_INFO("Enable modifier : %s", ena_mod_list[i]);
-            if (snd_use_case_set(am->ucm.uc_mgr, "_enamod", ena_mod_list[i]) < 0)
+            if (snd_use_case_set(ah->ucm.uc_mgr, "_enamod", ena_mod_list[i]) < 0)
                 AUDIO_LOG_ERROR("enable %s modifier failed", ena_mod_list[i]);
         }
     } else {
@@ -348,7 +364,7 @@ audio_return_t _audio_ucm_set_use_case (audio_mgr_t *am, const char *verb, const
 
         AUDIO_LOG_DEBUG("Setting new verb: %s", verb);
         /* set new verb */
-        if (snd_use_case_set(am->ucm.uc_mgr, "_verb", verb) < 0) {
+        if (snd_use_case_set(ah->ucm.uc_mgr, "_verb", verb) < 0) {
             AUDIO_LOG_ERROR("Setting verb %s failed", verb);
             audio_ret = AUDIO_ERR_UNDEFINED;
             goto exit;
@@ -356,13 +372,13 @@ audio_return_t _audio_ucm_set_use_case (audio_mgr_t *am, const char *verb, const
         /* enable devices */
         for (i = 0; i < dev_count; i++) {
             AUDIO_LOG_DEBUG("Enable device : %s", devices[i]);
-            if(snd_use_case_set(am->ucm.uc_mgr, "_enadev", devices[i]) < 0)
+            if(snd_use_case_set(ah->ucm.uc_mgr, "_enadev", devices[i]) < 0)
                 AUDIO_LOG_ERROR("Enable %s device failed", devices[i]);
         }
         /* enable modifiers */
         for (i = 0; i < mod_count; i++) {
             AUDIO_LOG_DEBUG("Enable modifier : %s", modifiers[i]);
-            if(snd_use_case_set(am->ucm.uc_mgr, "_enamod", modifiers[i]) < 0)
+            if(snd_use_case_set(ah->ucm.uc_mgr, "_enamod", modifiers[i]) < 0)
                 AUDIO_LOG_ERROR("Enable %s modifier failed", modifiers[i]);
         }
     }
@@ -387,9 +403,9 @@ exit:
         const char *new_verb = NULL, **new_dev_list = NULL, **new_mod_list = NULL;
         int new_dev_count = 0, new_mod_count = 0;
 
-        snd_use_case_get(am->ucm.uc_mgr, "_verb", &new_verb);
-        new_dev_count = snd_use_case_get_list(am->ucm.uc_mgr, "_enadevs", &new_dev_list);
-        new_mod_count = snd_use_case_get_list(am->ucm.uc_mgr, "_enamods", &new_mod_list);
+        snd_use_case_get(ah->ucm.uc_mgr, "_verb", &new_verb);
+        new_dev_count = snd_use_case_get_list(ah->ucm.uc_mgr, "_enadevs", &new_dev_list);
+        new_mod_count = snd_use_case_get_list(ah->ucm.uc_mgr, "_enamods", &new_mod_list);
         __dump_use_case(new_verb, new_dev_list, new_dev_count, new_mod_list, new_mod_count, &dump_str[0]);
         AUDIO_LOG_INFO("<<< UCM changed %s", dump_str);
 
@@ -404,7 +420,7 @@ exit:
     return audio_ret;
 }
 
-audio_return_t _audio_ucm_set_devices (audio_mgr_t *am, const char *verb, const char *devices[])
+audio_return_t _audio_ucm_set_devices (audio_hal_t *ah, const char *verb, const char *devices[])
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     int is_verb_changed = 0, is_dev_changed = 0;
@@ -415,11 +431,13 @@ audio_return_t _audio_ucm_set_devices (audio_mgr_t *am, const char *verb, const 
     int i = 0, j = 0;
     char dump_str[512];
 
-    if (!am->ucm.uc_mgr || !verb)
-        return AUDIO_ERR_PARAMETER;
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->ucm.uc_mgr, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(verb, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(devices, AUDIO_ERR_PARAMETER);
 
-    snd_use_case_get(am->ucm.uc_mgr, "_verb", &old_verb);
-    old_dev_count = snd_use_case_get_list(am->ucm.uc_mgr, "_enadevs", &old_dev_list);
+    snd_use_case_get(ah->ucm.uc_mgr, "_verb", &old_verb);
+    old_dev_count = snd_use_case_get_list(ah->ucm.uc_mgr, "_enadevs", &old_dev_list);
     __dump_use_case(old_verb, old_dev_list, old_dev_count, NULL, 0, &dump_str[0]);
     AUDIO_LOG_INFO(">>> UCM current %s", dump_str);
 
@@ -483,14 +501,14 @@ audio_return_t _audio_ucm_set_devices (audio_mgr_t *am, const char *verb, const 
         /* disable devices */
         for (i = 0; i < dis_dev_count; i++) {
             AUDIO_LOG_INFO("Disable device : %s", dis_dev_list[i]);
-            if (snd_use_case_set(am->ucm.uc_mgr, "_disdev", dis_dev_list[i]) < 0)
+            if (snd_use_case_set(ah->ucm.uc_mgr, "_disdev", dis_dev_list[i]) < 0)
                 AUDIO_LOG_ERROR("disable %s device failed", dis_dev_list[i]);
         }
 
         /* enable devices */
         for (i = 0; i < ena_dev_count; i++) {
             AUDIO_LOG_INFO("Enable device : %s", ena_dev_list[i]);
-            if (snd_use_case_set(am->ucm.uc_mgr, "_enadev", ena_dev_list[i]) < 0)
+            if (snd_use_case_set(ah->ucm.uc_mgr, "_enadev", ena_dev_list[i]) < 0)
                 AUDIO_LOG_ERROR("enable %s device failed", ena_dev_list[i]);
         }
 
@@ -499,7 +517,7 @@ audio_return_t _audio_ucm_set_devices (audio_mgr_t *am, const char *verb, const 
 
         AUDIO_LOG_DEBUG("Setting new verb: %s", verb);
         /* set new verb */
-        if (snd_use_case_set(am->ucm.uc_mgr, "_verb", verb) < 0) {
+        if (snd_use_case_set(ah->ucm.uc_mgr, "_verb", verb) < 0) {
             AUDIO_LOG_ERROR("Setting verb %s failed", verb);
             audio_ret = AUDIO_ERR_UNDEFINED;
             goto exit;
@@ -507,7 +525,7 @@ audio_return_t _audio_ucm_set_devices (audio_mgr_t *am, const char *verb, const 
         /* enable devices */
         for (i = 0; i < dev_count; i++) {
             AUDIO_LOG_DEBUG("Enable device : %s", devices[i]);
-            if(snd_use_case_set(am->ucm.uc_mgr, "_enadev", devices[i]) < 0)
+            if(snd_use_case_set(ah->ucm.uc_mgr, "_enadev", devices[i]) < 0)
                 AUDIO_LOG_ERROR("Enable %s device failed", devices[i]);
         }
     }
@@ -526,8 +544,8 @@ exit:
         const char *new_verb = NULL, **new_dev_list = NULL;
         int new_dev_count = 0;
 
-        snd_use_case_get(am->ucm.uc_mgr, "_verb", &new_verb);
-        new_dev_count = snd_use_case_get_list(am->ucm.uc_mgr, "_enadevs", &new_dev_list);
+        snd_use_case_get(ah->ucm.uc_mgr, "_verb", &new_verb);
+        new_dev_count = snd_use_case_get_list(ah->ucm.uc_mgr, "_enadevs", &new_dev_list);
         __dump_use_case(new_verb, new_dev_list, new_dev_count, NULL, 0, &dump_str[0]);
         AUDIO_LOG_INFO("<<< UCM changed %s", dump_str);
 
@@ -541,7 +559,7 @@ exit:
 
 }
 
-audio_return_t _audio_ucm_set_modifiers (audio_mgr_t *am, const char *verb, const char *modifiers[])
+audio_return_t _audio_ucm_set_modifiers (audio_hal_t *ah, const char *verb, const char *modifiers[])
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     int is_verb_changed = 0, is_mod_changed = 0;
@@ -552,11 +570,13 @@ audio_return_t _audio_ucm_set_modifiers (audio_mgr_t *am, const char *verb, cons
     int i = 0, j = 0;
     char dump_str[512];
 
-    if (!am->ucm.uc_mgr || !verb)
-        return AUDIO_ERR_PARAMETER;
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->ucm.uc_mgr, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(verb, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(modifiers, AUDIO_ERR_PARAMETER);
 
-    snd_use_case_get(am->ucm.uc_mgr, "_verb", &old_verb);
-    old_mod_count = snd_use_case_get_list(am->ucm.uc_mgr, "_enamods", &old_mod_list);
+    snd_use_case_get(ah->ucm.uc_mgr, "_verb", &old_verb);
+    old_mod_count = snd_use_case_get_list(ah->ucm.uc_mgr, "_enamods", &old_mod_list);
     __dump_use_case(old_verb, NULL, 0, old_mod_list, old_mod_count, &dump_str[0]);
     AUDIO_LOG_INFO(">>> UCM current %s", dump_str);
 
@@ -620,14 +640,14 @@ audio_return_t _audio_ucm_set_modifiers (audio_mgr_t *am, const char *verb, cons
         /* disable modifiers */
         for (i = 0; i < dis_mod_count; i++) {
             AUDIO_LOG_INFO("Disable modifier : %s", dis_mod_list[i]);
-            if (snd_use_case_set(am->ucm.uc_mgr, "_dismod", dis_mod_list[i]) < 0)
+            if (snd_use_case_set(ah->ucm.uc_mgr, "_dismod", dis_mod_list[i]) < 0)
                 AUDIO_LOG_ERROR("disable %s modifier failed", dis_mod_list[i]);
         }
 
         /* enable modifiers */
         for (i = 0; i < ena_mod_count; i++) {
             AUDIO_LOG_INFO("Enable modifier : %s", ena_mod_list[i]);
-            if (snd_use_case_set(am->ucm.uc_mgr, "_enamod", ena_mod_list[i]) < 0)
+            if (snd_use_case_set(ah->ucm.uc_mgr, "_enamod", ena_mod_list[i]) < 0)
                 AUDIO_LOG_ERROR("enable %s modifier failed", ena_mod_list[i]);
         }
     } else {
@@ -635,7 +655,7 @@ audio_return_t _audio_ucm_set_modifiers (audio_mgr_t *am, const char *verb, cons
 
         AUDIO_LOG_DEBUG("Setting new verb: %s", verb);
         /* set new verb */
-        if (snd_use_case_set(am->ucm.uc_mgr, "_verb", verb) < 0) {
+        if (snd_use_case_set(ah->ucm.uc_mgr, "_verb", verb) < 0) {
             AUDIO_LOG_ERROR("Setting verb %s failed", verb);
             audio_ret = AUDIO_ERR_UNDEFINED;
             goto exit;
@@ -643,7 +663,7 @@ audio_return_t _audio_ucm_set_modifiers (audio_mgr_t *am, const char *verb, cons
         /* enable modifiers */
         for (i = 0; i < mod_count; i++) {
             AUDIO_LOG_DEBUG("Enable modifier : %s", modifiers[i]);
-            if(snd_use_case_set(am->ucm.uc_mgr, "_enamod", modifiers[i]) < 0)
+            if(snd_use_case_set(ah->ucm.uc_mgr, "_enamod", modifiers[i]) < 0)
                 AUDIO_LOG_ERROR("Enable %s modifier failed", modifiers[i]);
         }
     }
@@ -662,8 +682,8 @@ exit:
         const char *new_verb = NULL, **new_mod_list = NULL;
         int new_mod_count = 0;
 
-        snd_use_case_get(am->ucm.uc_mgr, "_verb", &new_verb);
-        new_mod_count = snd_use_case_get_list(am->ucm.uc_mgr, "_enamods", &new_mod_list);
+        snd_use_case_get(ah->ucm.uc_mgr, "_verb", &new_verb);
+        new_mod_count = snd_use_case_get_list(ah->ucm.uc_mgr, "_enamods", &new_mod_list);
         __dump_use_case(new_verb, NULL, 0, new_mod_list, new_mod_count, &dump_str[0]);
         AUDIO_LOG_INFO("<<< UCM changed %s", dump_str);
 
@@ -676,14 +696,15 @@ exit:
     return audio_ret;
 }
 
-audio_return_t _audio_ucm_get_verb (audio_mgr_t *am, const char **value)
+audio_return_t _audio_ucm_get_verb (audio_hal_t *ah, const char **value)
 {
     audio_return_t ret = AUDIO_RET_OK;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->ucm.uc_mgr, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(value, AUDIO_ERR_PARAMETER);
 
-    if ((ret = snd_use_case_get(am->ucm.uc_mgr, "_verb", value)) < 0) {
+    if ((ret = snd_use_case_get(ah->ucm.uc_mgr, "_verb", value)) < 0) {
         AUDIO_LOG_ERROR("Getting current verb failed: Reason %d", ret);
         ret = AUDIO_ERR_UNDEFINED;
     }
@@ -692,15 +713,16 @@ audio_return_t _audio_ucm_get_verb (audio_mgr_t *am, const char **value)
 }
 
 
-audio_return_t _audio_ucm_reset_use_case (audio_mgr_t *am)
+audio_return_t _audio_ucm_reset_use_case (audio_hal_t *ah)
 {
     audio_return_t ret = AUDIO_RET_OK;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->ucm.uc_mgr, AUDIO_ERR_PARAMETER);
 
     AUDIO_LOG_INFO(">>> UCM reset Verb [ %s ]", AUDIO_USE_CASE_VERB_INACTIVE);
 
-    if ((ret = snd_use_case_set(am->ucm.uc_mgr, "_verb", AUDIO_USE_CASE_VERB_INACTIVE)) < 0) {
+    if ((ret = snd_use_case_set(ah->ucm.uc_mgr, "_verb", AUDIO_USE_CASE_VERB_INACTIVE)) < 0) {
         AUDIO_LOG_ERROR("Reset use case failed: Reason %d", ret);
         ret = AUDIO_ERR_UNDEFINED;
     }

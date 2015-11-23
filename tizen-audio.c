@@ -23,66 +23,65 @@
 
 #include "tizen-audio-internal.h"
 
-audio_return_t audio_init (void **userdata)
+/* audio latency */
+static const char* AUDIO_LATENCY_LOW  = "low";
+static const char* AUDIO_LATENCY_MID  = "mid";
+static const char* AUDIO_LATENCY_HIGH = "high";
+static const char* AUDIO_LATENCY_VOIP = "voip";
+
+audio_return_t audio_init (void **audio_handle)
 {
-    audio_mgr_t *am;
+    audio_hal_t *ah;
     audio_return_t ret = AUDIO_RET_OK;
 
-    if (!(am = malloc(sizeof(audio_mgr_t)))) {
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
+
+    if (!(ah = malloc(sizeof(audio_hal_t)))) {
         AUDIO_LOG_ERROR("am malloc failed");
         return AUDIO_ERR_RESOURCE;
     }
-    if (AUDIO_IS_ERROR((ret = _audio_device_init(am)))) {
+    if (AUDIO_IS_ERROR((ret = _audio_device_init(ah)))) {
         AUDIO_LOG_ERROR("device init failed");
         goto error_exit;
     }
-    if (AUDIO_IS_ERROR((ret = _audio_volume_init(am)))) {
+    if (AUDIO_IS_ERROR((ret = _audio_volume_init(ah)))) {
         AUDIO_LOG_ERROR("stream init failed");
         goto error_exit;
     }
-    if (AUDIO_IS_ERROR((ret = _audio_ucm_init(am)))) {
+    if (AUDIO_IS_ERROR((ret = _audio_ucm_init(ah)))) {
         AUDIO_LOG_ERROR("ucm init failed");
         goto error_exit;
     }
-    if (AUDIO_IS_ERROR((ret = _audio_util_init(am)))) {
+    if (AUDIO_IS_ERROR((ret = _audio_util_init(ah)))) {
         AUDIO_LOG_ERROR("mixer init failed");
         goto error_exit;
     }
 
-    *userdata = (void *)am;
+    *audio_handle = (void *)ah;
     return AUDIO_RET_OK;
 
 error_exit:
-    if (am)
-        free(am);
+    if (ah)
+        free(ah);
 
     return ret;
 }
 
-audio_return_t audio_deinit (void **userdata)
+audio_return_t audio_deinit (void *audio_handle)
 {
-    audio_mgr_t *am = (audio_mgr_t *)*userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_handle;
 
-    if (am) {
-        _audio_device_deinit(am);
-        _audio_volume_deinit(am);
-        _audio_ucm_deinit(am);
-        _audio_util_deinit(am);
-        free(am);
-        *userdata = NULL;
-    }
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+
+    _audio_device_deinit(ah);
+    _audio_volume_deinit(ah);
+    _audio_ucm_deinit(ah);
+    _audio_util_deinit(ah);
+    free(ah);
+    ah = NULL;
 
     return AUDIO_RET_OK;
 }
-
-static const unsigned int SAMPLES_PER_PERIOD_DEFAULT         = 1536; /* Frames */
-static const unsigned int PERIODS_PER_BUFFER_FASTMODE        = 4;
-static const unsigned int PERIODS_PER_BUFFER_DEFAULT         = 6;
-static const unsigned int PERIODS_PER_BUFFER_VOIP            = 2;
-static const unsigned int PERIODS_PER_BUFFER_PLAYBACK        = 8;
-static const unsigned int PERIODS_PER_BUFFER_CAPTURE         = 12;
-static const unsigned int PERIODS_PER_BUFFER_VIDEO           = 10;
-
 
 /* Latency msec */
 static const unsigned int PERIOD_TIME_FOR_ULOW_LATENCY_MSEC  = 20;
@@ -134,7 +133,7 @@ uint32_t _audio_sample_size(audio_sample_format_t format)
 {
     return g_size_table[format];
 }
-audio_return_t audio_get_buffer_attr(void                  *userdata,
+audio_return_t audio_get_buffer_attr(void                  *audio_handle,
                                      uint32_t              direction,
                                      const char            *latency,
                                      uint32_t              samplerate,
@@ -146,21 +145,18 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
                                      uint32_t              *minreq,
                                      uint32_t              *fragsize)
 {
-    assert(userdata);
-    assert(latency);
-    assert(maxlength);
-    assert(tlength);
-    assert(prebuf);
-    assert(minreq);
-    assert(fragsize);
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(latency, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(maxlength, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(tlength, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(prebuf, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(minreq, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(fragsize, AUDIO_ERR_PARAMETER);
 
     AUDIO_LOG_DEBUG("hal-latency - audio_get_buffer_attr(direction:%d, latency:%s, samplerate:%d, format:%d, channels:%d)", direction, latency, samplerate, format, channels);
 
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
-
     uint32_t period_time        = 0,
-             sample_per_period  = 0,
-             periods_per_buffer = 0;
+             sample_per_period  = 0;
 
     if (_sample_spec_valid(samplerate, format, channels) == 0) {
         return AUDIO_ERR_PARAMETER;
@@ -171,7 +167,6 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             AUDIO_LOG_DEBUG("AUDIO_DIRECTION_IN, AUDIO_LATENCY_LOW");
             period_time        = PERIOD_TIME_FOR_LOW_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
-            periods_per_buffer = PERIODS_PER_BUFFER_FASTMODE;
             *prebuf            = 0;
             *minreq            = -1;
             *tlength           = -1;
@@ -181,7 +176,6 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             AUDIO_LOG_DEBUG("AUDIO_DIRECTION_IN, AUDIO_LATENCY_MID");
             period_time        = PERIOD_TIME_FOR_MID_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
-            periods_per_buffer = PERIODS_PER_BUFFER_DEFAULT;
             *prebuf            = 0;
             *minreq            = -1;
             *tlength           = -1;
@@ -191,7 +185,6 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             AUDIO_LOG_DEBUG("AUDIO_DIRECTION_IN, AUDIO_LATENCY_HIGH");
             period_time        = PERIOD_TIME_FOR_HIGH_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
-            periods_per_buffer = PERIODS_PER_BUFFER_CAPTURE;
             *prebuf            = 0;
             *minreq            = -1;
             *tlength           = -1;
@@ -201,7 +194,6 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             AUDIO_LOG_DEBUG("AUDIO_DIRECTION_IN, AUDIO_LATENCY_VOIP");
             period_time        = PERIOD_TIME_FOR_VOIP_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
-            periods_per_buffer = PERIODS_PER_BUFFER_VOIP;
             *prebuf            = 0;
             *minreq            = -1;
             *tlength           = -1;
@@ -216,7 +208,6 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             AUDIO_LOG_DEBUG("AUDIO_DIRECTION_OUT, AUDIO_LATENCY_LOW");
             period_time        = PERIOD_TIME_FOR_LOW_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
-            periods_per_buffer = PERIODS_PER_BUFFER_FASTMODE;
             *prebuf            = 0;
             *minreq            = -1;
             *tlength           = (samplerate / 10) * _audio_sample_size(format) * channels;  /* 100ms */
@@ -226,7 +217,6 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             AUDIO_LOG_DEBUG("AUDIO_DIRECTION_OUT, AUDIO_LATENCY_MID");
             period_time        = PERIOD_TIME_FOR_MID_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
-            periods_per_buffer = PERIODS_PER_BUFFER_DEFAULT;
             *prebuf            = 0;
             *minreq            = -1;
             *tlength           = (uint32_t) _audio_usec_to_bytes(200000, samplerate, format, channels);
@@ -236,7 +226,6 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             AUDIO_LOG_DEBUG("AUDIO_DIRECTION_OUT, AUDIO_LATENCY_HIGH");
             period_time        = PERIOD_TIME_FOR_HIGH_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
-            periods_per_buffer = PERIODS_PER_BUFFER_PLAYBACK;
             *prebuf            = 0;
             *minreq            = -1;
             *tlength           = (uint32_t) _audio_usec_to_bytes(400000, samplerate, format, channels);
@@ -246,7 +235,6 @@ audio_return_t audio_get_buffer_attr(void                  *userdata,
             AUDIO_LOG_DEBUG("AUDIO_DIRECTION_OUT, AUDIO_LATENCY_VOIP");
             period_time        = PERIOD_TIME_FOR_VOIP_LATENCY_MSEC;
             sample_per_period  = (samplerate * period_time) / 1000;
-            periods_per_buffer = PERIODS_PER_BUFFER_VOIP;
             *prebuf            = 0;
             *minreq            = _audio_usec_to_bytes(20000, samplerate, format, channels);
             *tlength           = _audio_usec_to_bytes(100000, samplerate, format, channels);

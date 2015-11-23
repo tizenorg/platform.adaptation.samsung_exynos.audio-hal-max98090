@@ -44,7 +44,6 @@ static const char *g_volume_vconf[AUDIO_VOLUME_TYPE_MAX] = {
     "file/private/sound/volume/call",           /* AUDIO_VOLUME_TYPE_CALL */
     "file/private/sound/volume/voip",           /* AUDIO_VOLUME_TYPE_VOIP */
     "file/private/sound/volume/voice",          /* AUDIO_VOLUME_TYPE_VOICE */
-    "file/private/sound/volume/fixed",          /* AUDIO_VOLUME_TYPE_FIXED */
 };
 
 static const char *__get_volume_type_string_by_idx (uint32_t vol_type_idx)
@@ -58,7 +57,6 @@ static const char *__get_volume_type_string_by_idx (uint32_t vol_type_idx)
     case AUDIO_VOLUME_TYPE_CALL:            return "call";
     case AUDIO_VOLUME_TYPE_VOIP:            return "voip";
     case AUDIO_VOLUME_TYPE_VOICE:           return "voice";
-    case AUDIO_VOLUME_TYPE_FIXED:           return "fixed";
     default:                                return "invalid";
     }
 }
@@ -81,8 +79,6 @@ static uint32_t __get_volume_idx_by_string_type (const char *vol_type)
         return AUDIO_VOLUME_TYPE_VOIP;
     else if (!strncmp(vol_type, "voice", strlen(vol_type)) || !strncmp(vol_type, "7", strlen(vol_type)))
         return AUDIO_VOLUME_TYPE_VOICE;
-    else if (!strncmp(vol_type, "fixed", strlen(vol_type)) || !strncmp(vol_type, "8", strlen(vol_type)))
-        return AUDIO_VOLUME_TYPE_FIXED;
     else
         return AUDIO_VOLUME_TYPE_MEDIA;
 }
@@ -105,9 +101,9 @@ static const char *__get_gain_type_string_by_idx (uint32_t gain_type_idx)
     }
 }
 
-static void __dump_tb (audio_mgr_t *am)
+static void __dump_tb (audio_hal_t *ah)
 {
-    audio_volume_value_table_t *volume_value_table = am->volume.volume_value_table;
+    audio_volume_value_table_t *volume_value_table = ah->volume.volume_value_table;
     uint32_t vol_type_idx, vol_level_idx, gain_type_idx;
     const char *gain_type_str[] = {
         "def",          /* AUDIO_GAIN_TYPE_DEFAULT */
@@ -146,7 +142,7 @@ static void __dump_tb (audio_mgr_t *am)
         AUDIO_LOG_INFO("%s", dump_str);
     }
 
-    volume_value_table = am->volume.volume_value_table;
+    volume_value_table = ah->volume.volume_value_table;
 
     /* Dump gain table */
     AUDIO_LOG_INFO("<<<<< gain table >>>>>");
@@ -177,11 +173,11 @@ static void __dump_tb (audio_mgr_t *am)
 
 }
 
-static audio_return_t __load_volume_value_table_from_ini (audio_mgr_t *am)
+static audio_return_t __load_volume_value_table_from_ini (audio_hal_t *ah)
 {
     dictionary * dict = NULL;
     uint32_t vol_type_idx, vol_level_idx, gain_type_idx;
-    audio_volume_value_table_t *volume_value_table = am->volume.volume_value_table;
+    audio_volume_value_table_t *volume_value_table = ah->volume.volume_value_table;
     int size = 0;
 
     dict = iniparser_load(VOLUME_INI_TEMP_PATH);
@@ -251,22 +247,22 @@ static audio_return_t __load_volume_value_table_from_ini (audio_mgr_t *am)
 
     iniparser_freedict(dict);
 
-    __dump_tb(am);
+    __dump_tb(ah);
 
     return AUDIO_RET_OK;
 }
 
-audio_return_t _audio_volume_init (audio_mgr_t *am)
+audio_return_t _audio_volume_init (audio_hal_t *ah)
 {
     int i;
     int val = 0;
     audio_return_t audio_ret = AUDIO_RET_OK;
-    int init_value[AUDIO_VOLUME_TYPE_MAX] = { 9, 11, 7, 11, 7, 4, 4, 7, 4, 0 };
+    int init_value[AUDIO_VOLUME_TYPE_MAX] = { 9, 11, 7, 11, 7, 4, 4, 7 };
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
 
     for (i = 0; i < AUDIO_VOLUME_TYPE_MAX; i++) {
-        am->volume.volume_level[i] = init_value[i];
+        ah->volume.volume_level[i] = init_value[i];
     }
 
     for (i = 0; i < AUDIO_VOLUME_TYPE_MAX; i++) {
@@ -277,15 +273,15 @@ audio_return_t _audio_volume_init (audio_mgr_t *am)
         }
 
         AUDIO_LOG_INFO("read vconf. %s = %d", g_volume_vconf[i], val);
-        am->volume.volume_level[i] = val;
+        ah->volume.volume_level[i] = val;
     }
 
-    if (!(am->volume.volume_value_table = malloc(AUDIO_VOLUME_DEVICE_MAX * sizeof(audio_volume_value_table_t)))) {
+    if (!(ah->volume.volume_value_table = malloc(AUDIO_VOLUME_DEVICE_MAX * sizeof(audio_volume_value_table_t)))) {
         AUDIO_LOG_ERROR("volume_value_table malloc failed");
         return AUDIO_ERR_RESOURCE;
     }
 
-    audio_ret = __load_volume_value_table_from_ini(am);
+    audio_ret = __load_volume_value_table_from_ini(ah);
     if(audio_ret != AUDIO_RET_OK) {
         AUDIO_LOG_ERROR("gain table load error");
         return AUDIO_ERR_UNDEFINED;
@@ -294,28 +290,28 @@ audio_return_t _audio_volume_init (audio_mgr_t *am)
     return audio_ret;
 }
 
-audio_return_t _audio_volume_deinit (audio_mgr_t *am)
+audio_return_t _audio_volume_deinit (audio_hal_t *ah)
 {
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
 
-    if (am->volume.volume_value_table) {
-        free(am->volume.volume_value_table);
-        am->volume.volume_value_table = NULL;
+    if (ah->volume.volume_value_table) {
+        free(ah->volume.volume_value_table);
+        ah->volume.volume_value_table = NULL;
     }
 
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_get_volume_level_max (void *userdata, audio_volume_info_t *info, uint32_t *level)
+audio_return_t audio_get_volume_level_max (void *audio_intf, audio_volume_info_t *info, uint32_t *level)
 {
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_intf;
     audio_volume_value_table_t *volume_value_table;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
-    AUDIO_RETURN_VAL_IF_FAIL(am->volume.volume_value_table, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->volume.volume_value_table, AUDIO_ERR_PARAMETER);
 
     /* Get max volume level by device & type */
-    volume_value_table = am->volume.volume_value_table;
+    volume_value_table = ah->volume.volume_value_table;
     *level = volume_value_table->volume_level_max[__get_volume_idx_by_string_type(info->type)];
 
     AUDIO_LOG_DEBUG("get_[%s] volume_level_max: %d", info->type, *level);
@@ -323,30 +319,30 @@ audio_return_t audio_get_volume_level_max (void *userdata, audio_volume_info_t *
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_get_volume_level (void *userdata, audio_volume_info_t *info, uint32_t *level)
+audio_return_t audio_get_volume_level (void *audio_intf, audio_volume_info_t *info, uint32_t *level)
 {
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_intf;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
 
-    *level = am->volume.volume_level[__get_volume_idx_by_string_type(info->type)];
+    *level = ah->volume.volume_level[__get_volume_idx_by_string_type(info->type)];
 
     AUDIO_LOG_INFO("get [%s] volume_level: %d, direction(%d)", info->type, *level, info->direction);
 
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_get_volume_value (void *userdata, audio_volume_info_t *info, uint32_t level, double *value)
+audio_return_t audio_get_volume_value (void *audio_intf, audio_volume_info_t *info, uint32_t level, double *value)
 {
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_intf;
     audio_volume_value_table_t *volume_value_table;
     char dump_str[AUDIO_DUMP_STR_LEN] = {0,};
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
-    AUDIO_RETURN_VAL_IF_FAIL(am->volume.volume_value_table, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah->volume.volume_value_table, AUDIO_ERR_PARAMETER);
 
     /* Get basic volume by device & type & level */
-    volume_value_table = am->volume.volume_value_table;
+    volume_value_table = ah->volume.volume_value_table;
     if (volume_value_table->volume_level_max[__get_volume_idx_by_string_type(info->type)] < level)
         *value = VOLUME_VALUE_MAX;
     else
@@ -358,15 +354,15 @@ audio_return_t audio_get_volume_value (void *userdata, audio_volume_info_t *info
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_set_volume_level (void *userdata, audio_volume_info_t *info, uint32_t level)
+audio_return_t audio_set_volume_level (void *audio_intf, audio_volume_info_t *info, uint32_t level)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_intf;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
 
     /* Update volume level */
-    am->volume.volume_level[__get_volume_idx_by_string_type(info->type)] = level;
+    ah->volume.volume_level[__get_volume_idx_by_string_type(info->type)] = level;
     AUDIO_LOG_INFO("set [%s] volume_level: %d, direction(%d)", info->type, level, info->direction);
 
     /* set mixer related to H/W volume if needed */
@@ -374,24 +370,24 @@ audio_return_t audio_set_volume_level (void *userdata, audio_volume_info_t *info
     return audio_ret;
 }
 
-audio_return_t audio_get_volume_mute (void *userdata, audio_volume_info_t *info, uint32_t *mute)
+audio_return_t audio_get_volume_mute (void *audio_intf, audio_volume_info_t *info, uint32_t *mute)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_intf;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
 
     /* TODO. Not implemented */
 
     return audio_ret;
 }
 
-audio_return_t audio_set_volume_mute (void *userdata, audio_volume_info_t *info, uint32_t mute)
+audio_return_t audio_set_volume_mute (void *audio_intf, audio_volume_info_t *info, uint32_t mute)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_intf;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
     /* TODO. Not implemented */
 
     return audio_ret;

@@ -75,12 +75,15 @@ static uint32_t convert_device_string_to_enum(const char* device_str, uint32_t d
     return device;
 }
 
-static audio_return_t set_devices(audio_mgr_t *am, const char *verb, device_info_t *devices, uint32_t num_of_devices)
+static audio_return_t set_devices(audio_hal_t *ah, const char *verb, device_info_t *devices, uint32_t num_of_devices)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     uint32_t new_device = 0;
     const char *active_devices[MAX_DEVICES] = {NULL,};
     int i = 0, j = 0, dev_idx = 0;
+
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(devices, AUDIO_ERR_PARAMETER);
 
     if (num_of_devices > MAX_DEVICES) {
         num_of_devices = MAX_DEVICES;
@@ -88,16 +91,16 @@ static audio_return_t set_devices(audio_mgr_t *am, const char *verb, device_info
         return AUDIO_ERR_PARAMETER;
     }
 
-    if ((devices[0].direction == AUDIO_DIRECTION_OUT) && am->device.active_in) {
+    if ((devices[0].direction == AUDIO_DIRECTION_OUT) && ah->device.active_in) {
         /* check the active in devices */
         for (j = 0; j < inDeviceTypes[j].type; j++) {
-            if (((am->device.active_in & (~0x80000000)) & inDeviceTypes[j].type))
+            if (((ah->device.active_in & (~0x80000000)) & inDeviceTypes[j].type))
                 active_devices[dev_idx++] = inDeviceTypes[j].name;
         }
-    } else if ((devices[0].direction == AUDIO_DIRECTION_IN) && am->device.active_out) {
+    } else if ((devices[0].direction == AUDIO_DIRECTION_IN) && ah->device.active_out) {
         /* check the active out devices */
         for (j = 0; j < outDeviceTypes[j].type; j++) {
-            if (am->device.active_out & outDeviceTypes[j].type)
+            if (ah->device.active_out & outDeviceTypes[j].type)
                 active_devices[dev_idx++] = outDeviceTypes[j].name;
         }
     }
@@ -108,14 +111,14 @@ static audio_return_t set_devices(audio_mgr_t *am, const char *verb, device_info
             for (j = 0; j < inDeviceTypes[j].type; j++) {
                 if (new_device == inDeviceTypes[j].type) {
                     active_devices[dev_idx++] = inDeviceTypes[j].name;
-                    am->device.active_in |= new_device;
+                    ah->device.active_in |= new_device;
                 }
             }
         } else {
             for (j = 0; j < outDeviceTypes[j].type; j++) {
                 if (new_device == outDeviceTypes[j].type) {
                     active_devices[dev_idx++] = outDeviceTypes[j].name;
-                    am->device.active_out |= new_device;
+                    ah->device.active_out |= new_device;
                 }
             }
         }
@@ -126,7 +129,7 @@ static audio_return_t set_devices(audio_mgr_t *am, const char *verb, device_info
         return AUDIO_ERR_PARAMETER;
     }
 
-    audio_ret = _audio_ucm_set_devices(am, verb, active_devices);
+    audio_ret = _audio_ucm_set_devices(ah, verb, active_devices);
     if (audio_ret) {
         AUDIO_LOG_ERROR("Failed to set device: error = %d", audio_ret);
         return audio_ret;
@@ -135,33 +138,38 @@ static audio_return_t set_devices(audio_mgr_t *am, const char *verb, device_info
 
 }
 
-audio_return_t _audio_device_init (audio_mgr_t *am)
+audio_return_t _audio_device_init (audio_hal_t *ah)
 {
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
 
-    am->device.active_in = 0x0;
-    am->device.active_out = 0x0;
-    am->device.pcm_in = NULL;
-    am->device.pcm_out = NULL;
-    am->device.mode = VERB_NORMAL;
-    pthread_mutex_init(&am->device.pcm_lock, NULL);
-    am->device.pcm_count = 0;
+    ah->device.active_in = 0x0;
+    ah->device.active_out = 0x0;
+    ah->device.pcm_in = NULL;
+    ah->device.pcm_out = NULL;
+    ah->device.mode = VERB_NORMAL;
+    pthread_mutex_init(&ah->device.pcm_lock, NULL);
+    ah->device.pcm_count = 0;
 
     return AUDIO_RET_OK;
 }
 
-audio_return_t _audio_device_deinit (audio_mgr_t *am)
+audio_return_t _audio_device_deinit (audio_hal_t *ah)
 {
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
 
     return AUDIO_RET_OK;
 }
 
-static audio_return_t _do_route_ap_playback_capture (audio_mgr_t *am, audio_route_info_t *route_info)
+static audio_return_t _do_route_ap_playback_capture (audio_hal_t *ah, audio_route_info_t *route_info)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    device_info_t *devices = route_info->device_infos;
+    device_info_t *devices = NULL;
     const char *verb = NULL;
+
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(route_info, AUDIO_ERR_PARAMETER);
+
+    devices = route_info->device_infos;
 
     /* To Do: Set modifiers */
     /* int mod_idx = 0; */
@@ -169,52 +177,54 @@ static audio_return_t _do_route_ap_playback_capture (audio_mgr_t *am, audio_rout
 
     verb = AUDIO_USE_CASE_VERB_HIFI;
     AUDIO_LOG_INFO("do_route_ap_playback_capture++ ");
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
 
-    audio_ret = set_devices(am, verb, devices, route_info->num_of_devices);
+    audio_ret = set_devices(ah, verb, devices, route_info->num_of_devices);
     if (audio_ret) {
         AUDIO_LOG_ERROR("Failed to set devices: error = 0x%x", audio_ret);
         return audio_ret;
     }
-    am->device.mode = VERB_NORMAL;
+    ah->device.mode = VERB_NORMAL;
 
     /* To Do: Set modifiers */
     /*
     if (!strncmp("voice_recognition", route_info->role, MAX_NAME_LEN)) {
         modifiers[mod_idx++] = AUDIO_USE_CASE_MODIFIER_VOICESEARCH;
     } else if ((!strncmp("alarm", route_info->role, MAX_NAME_LEN))||(!strncmp("notifiication", route_info->role, MAX_NAME_LEN))) {
-        if (am->device.active_out &= AUDIO_DEVICE_OUT_JACK)
+        if (ah->device.active_out &= AUDIO_DEVICE_OUT_JACK)
             modifiers[mod_idx++] = AUDIO_USE_CASE_MODIFIER_DUAL_MEDIA;
         else
             modifiers[mod_idx++] = AUDIO_USE_CASE_MODIFIER_MEDIA;
     } else {
-        if (am->device.active_in)
+        if (ah->device.active_in)
             modifiers[mod_idx++] = AUDIO_USE_CASE_MODIFIER_CAMCORDING;
         else
             modifiers[mod_idx++] = AUDIO_USE_CASE_MODIFIER_MEDIA;
     }
-    audio_ret = _audio_ucm_set_modifiers (am, verb, modifiers);
+    audio_ret = _audio_ucm_set_modifiers (ah, verb, modifiers);
     */
 
     return audio_ret;
 }
 
-audio_return_t _do_route_voip (audio_mgr_t *am, device_info_t *devices, int32_t num_of_devices)
+audio_return_t _do_route_voip (audio_hal_t *ah, device_info_t *devices, int32_t num_of_devices)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     const char *verb = NULL;
     const char *active_devices[MAX_DEVICES] = {NULL,};
     verb = AUDIO_USE_CASE_VERB_HIFI;
 
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(devices, AUDIO_ERR_PARAMETER);
+
     AUDIO_LOG_INFO("do_route_voip++");
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
-    audio_ret = set_devices(am, verb, devices, num_of_devices);
+
+    audio_ret = set_devices(ah, verb, devices, num_of_devices);
     if (audio_ret) {
         AUDIO_LOG_ERROR("Failed to set devices: error = 0x%x", audio_ret);
         return audio_ret;
     }
     /* FIXME. If necessary, set VERB_VOIP */
-    am->device.mode = VERB_NORMAL;
+    ah->device.mode = VERB_NORMAL;
     if (active_devices == NULL) {
         AUDIO_LOG_ERROR("Failed to set device: active device is NULL");
         return AUDIO_ERR_PARAMETER;
@@ -224,7 +234,7 @@ audio_return_t _do_route_voip (audio_mgr_t *am, device_info_t *devices, int32_t 
     return audio_ret;
 }
 
-audio_return_t _do_route_reset (audio_mgr_t *am, uint32_t direction)
+audio_return_t _do_route_reset (audio_hal_t *ah, uint32_t direction)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
 
@@ -232,42 +242,44 @@ audio_return_t _do_route_reset (audio_mgr_t *am, uint32_t direction)
     /* const char *verb = NULL; */
     /* verb = AUDIO_USE_CASE_VERB_INACTIVE; */
 
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+
     AUDIO_LOG_INFO("do_route_reset++, direction(%p)", direction);
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
 
     if (direction == AUDIO_DIRECTION_OUT) {
-        am->device.active_out &= 0x0;
+        ah->device.active_out &= 0x0;
     } else {
-        am->device.active_in &= 0x0;
+        ah->device.active_in &= 0x0;
     }
 
     /* TO DO: Set Inactive */
     return audio_ret;
 }
 
-audio_return_t audio_do_route (void *userdata, audio_route_info_t *info)
+audio_return_t audio_do_route (void *audio_handle, audio_route_info_t *info)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
-    device_info_t *devices = info->device_infos;
+    audio_hal_t *ah = (audio_hal_t *)audio_handle;
+    device_info_t *devices = NULL;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(info, AUDIO_ERR_PARAMETER);
 
     AUDIO_LOG_INFO("role:%s", info->role);
 
     if (!strncmp("voip", info->role, MAX_NAME_LEN)) {
-        audio_ret = _do_route_voip(am, devices, info->num_of_devices);
+        audio_ret = _do_route_voip(ah, devices, info->num_of_devices);
         if (AUDIO_IS_ERROR(audio_ret)) {
             AUDIO_LOG_WARN("set voip route return 0x%x", audio_ret);
         }
     } else if (!strncmp("reset", info->role, MAX_NAME_LEN)) {
-        audio_ret = _do_route_reset(am, devices->direction);
+        audio_ret = _do_route_reset(ah, devices->direction);
         if (AUDIO_IS_ERROR(audio_ret)) {
             AUDIO_LOG_WARN("set reset return 0x%x", audio_ret);
         }
     } else {
         /* need to prepare for "alarm","notification","emergency","voice-information","voice-recognition","ringtone" */
-        audio_ret = _do_route_ap_playback_capture(am, info);
+        audio_ret = _do_route_ap_playback_capture(ah, info);
 
         if (AUDIO_IS_ERROR(audio_ret)) {
             AUDIO_LOG_WARN("set playback route return 0x%x", audio_ret);
@@ -276,24 +288,26 @@ audio_return_t audio_do_route (void *userdata, audio_route_info_t *info)
     return audio_ret;
 }
 
-audio_return_t audio_update_stream_connection_info (void *userdata, audio_stream_info_t *info, uint32_t is_connected)
+audio_return_t audio_update_stream_connection_info (void *audio_handle, audio_stream_info_t *info, uint32_t is_connected)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_handle;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(info, AUDIO_ERR_PARAMETER);
 
     AUDIO_LOG_INFO("role:%s, direction:%u, idx:%u, is_connected:%d", info->role, info->direction, info->idx, is_connected);
 
     return audio_ret;
 }
 
-audio_return_t audio_update_route_option (void *userdata, audio_route_option_t *option)
+audio_return_t audio_update_route_option (void *audio_handle, audio_route_option_t *option)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_handle;
 
-    AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(option, AUDIO_ERR_PARAMETER);
 
     AUDIO_LOG_INFO("role:%s, name:%s, value:%d", option->role, option->name, option->value);
 
@@ -305,6 +319,8 @@ static struct pcm *__tinyalsa_open_device (audio_pcm_sample_spec_t *ss, size_t p
 {
     struct pcm *pcm = NULL;
     struct pcm_config config;
+
+    AUDIO_RETURN_NULL_IF_FAIL(ss);
 
     config.channels          = ss->channels;
     config.rate              = ss->rate;
@@ -331,19 +347,20 @@ static struct pcm *__tinyalsa_open_device (audio_pcm_sample_spec_t *ss, size_t p
 }
 #endif
 
-audio_return_t audio_pcm_open (void *userdata, void **pcm_handle, uint32_t direction, void *sample_spec, uint32_t period_size, uint32_t periods)
+audio_return_t audio_pcm_open (void *audio_handle, void **pcm_handle, uint32_t direction, void *sample_spec, uint32_t period_size, uint32_t periods)
 {
 #ifdef __USE_TINYALSA__
-    audio_mgr_t *am;
+    audio_hal_t *ah;
     audio_pcm_sample_spec_t *ss;
     int err;
 
-    AUDIO_RETURN_VAL_IF_FAIL(userdata, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(sample_spec, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL((period_size > 0), AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL((periods > 0), AUDIO_ERR_PARAMETER);
 
-    am = (audio_mgr_t *)userdata;
+    ah = (audio_hal_t *)audio_handle;
     ss = (audio_pcm_sample_spec_t *)sample_spec;
     ss->format = _convert_format((audio_sample_format_t)ss->format);
 
@@ -357,23 +374,21 @@ audio_return_t audio_pcm_open (void *userdata, void **pcm_handle, uint32_t direc
         AUDIO_LOG_ERROR("Error prepare PCM device : %d", err);
     }
 
-    am->device.pcm_count++;
+    ah->device.pcm_count++;
     AUDIO_LOG_INFO("Opening PCM handle 0x%x", *pcm_handle);
 #else  /* alsa-lib */
-    audio_mgr_t *am;
+    audio_hal_t *ah;
     int err, mode;
     char *device_name = NULL;
-    uint8_t use_mmap = 0;
-    snd_pcm_uframes_t buffer_size;
 
-    AUDIO_RETURN_VAL_IF_FAIL(userdata, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(sample_spec, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL((period_size > 0), AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL((periods > 0), AUDIO_ERR_PARAMETER);
 
-    am = (audio_mgr_t *)userdata;
+    ah = (audio_hal_t *)audio_handle;
     mode =  SND_PCM_NONBLOCK | SND_PCM_NO_AUTO_RESAMPLE | SND_PCM_NO_AUTO_CHANNELS | SND_PCM_NO_AUTO_FORMAT;
-    buffer_size = (snd_pcm_uframes_t)(period_size * periods);
 
     if(direction == AUDIO_DIRECTION_OUT)
         device_name = PLAYBACK_PCM_DEVICE;
@@ -389,21 +404,24 @@ audio_return_t audio_pcm_open (void *userdata, void **pcm_handle, uint32_t direc
         return AUDIO_ERR_RESOURCE;
     }
 
-    if ((err = audio_pcm_set_params(userdata, *pcm_handle, direction, sample_spec, period_size, periods)) != AUDIO_RET_OK) {
+    if ((err = audio_pcm_set_params(audio_handle, *pcm_handle, direction, sample_spec, period_size, periods)) != AUDIO_RET_OK) {
         AUDIO_LOG_ERROR("Failed to set pcm parameters : %d", err);
         return err;
     }
 
-    am->device.pcm_count++;
+    ah->device.pcm_count++;
     AUDIO_LOG_INFO("Opening PCM handle 0x%x, PCM device %s", *pcm_handle, device_name);
 #endif
 
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_start (void *userdata, void *pcm_handle)
+audio_return_t audio_pcm_start (void *audio_handle, void *pcm_handle)
 {
     int err;
+
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
 #ifdef __USE_TINYALSA__
     if ((err = pcm_start(pcm_handle)) < 0) {
@@ -421,9 +439,12 @@ audio_return_t audio_pcm_start (void *userdata, void *pcm_handle)
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_stop (void *userdata, void *pcm_handle)
+audio_return_t audio_pcm_stop (void *audio_handle, void *pcm_handle)
 {
     int err;
+
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
 #ifdef __USE_TINYALSA__
     if ((err = pcm_stop(pcm_handle)) < 0) {
@@ -441,10 +462,13 @@ audio_return_t audio_pcm_stop (void *userdata, void *pcm_handle)
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_close (void *userdata, void *pcm_handle)
+audio_return_t audio_pcm_close (void *audio_handle, void *pcm_handle)
 {
-    audio_mgr_t *am = (audio_mgr_t *)userdata;
+    audio_hal_t *ah = (audio_hal_t *)audio_handle;
     int err;
+
+    AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
+    AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
     AUDIO_LOG_INFO("Try to close PCM handle 0x%x", pcm_handle);
 
@@ -461,19 +485,20 @@ audio_return_t audio_pcm_close (void *userdata, void *pcm_handle)
 #endif
 
     pcm_handle = NULL;
-    am->device.pcm_count--;
-    AUDIO_LOG_INFO("PCM handle close success (count:%d)", am->device.pcm_count);
+    ah->device.pcm_count--;
+    AUDIO_LOG_INFO("PCM handle close success (count:%d)", ah->device.pcm_count);
 
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_avail (void *userdata, void *pcm_handle, uint32_t *avail)
+audio_return_t audio_pcm_avail (void *audio_handle, void *pcm_handle, uint32_t *avail)
 {
 #ifdef __USE_TINYALSA__
     struct timespec tspec;
     unsigned int frames_avail = 0;
     int err;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(avail, AUDIO_ERR_PARAMETER);
 
@@ -491,6 +516,7 @@ audio_return_t audio_pcm_avail (void *userdata, void *pcm_handle, uint32_t *avai
 #else  /* alsa-lib */
     snd_pcm_sframes_t frames_avail;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(avail, AUDIO_ERR_PARAMETER);
 
@@ -509,11 +535,12 @@ audio_return_t audio_pcm_avail (void *userdata, void *pcm_handle, uint32_t *avai
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_write (void *userdata, void *pcm_handle, const void *buffer, uint32_t frames)
+audio_return_t audio_pcm_write (void *audio_handle, void *pcm_handle, const void *buffer, uint32_t frames)
 {
 #ifdef __USE_TINYALSA__
     int err;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
     err = pcm_write(pcm_handle, buffer, pcm_frames_to_bytes(pcm_handle, (unsigned int)frames));
@@ -544,11 +571,12 @@ audio_return_t audio_pcm_write (void *userdata, void *pcm_handle, const void *bu
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_read (void *userdata, void *pcm_handle, void *buffer, uint32_t frames)
+audio_return_t audio_pcm_read (void *audio_handle, void *pcm_handle, void *buffer, uint32_t frames)
 {
 #ifdef __USE_TINYALSA__
     int err;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
     err = pcm_read(pcm_handle, buffer, pcm_frames_to_bytes(pcm_handle, (unsigned int)frames));
@@ -563,6 +591,7 @@ audio_return_t audio_pcm_read (void *userdata, void *pcm_handle, void *buffer, u
 #else  /* alsa-lib */
     snd_pcm_sframes_t frames_read;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
     frames_read = snd_pcm_readi(pcm_handle, buffer, (snd_pcm_uframes_t)frames);
@@ -579,10 +608,12 @@ audio_return_t audio_pcm_read (void *userdata, void *pcm_handle, void *buffer, u
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_get_fd(void *userdata, void *pcm_handle, int *fd)
+audio_return_t audio_pcm_get_fd(void *audio_handle, void *pcm_handle, int *fd)
 {
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(fd, AUDIO_ERR_PARAMETER);
+    /* we use an internal API of the (tiny)alsa library, so it causes warning message during compile */
 #ifdef __USE_TINYALSA__
     *fd = _pcm_poll_descriptor((struct pcm *)pcm_handle);
 #else  /* alsa-lib */
@@ -616,10 +647,11 @@ static int __tinyalsa_pcm_recover(struct pcm *pcm, int err)
 }
 #endif
 
-audio_return_t audio_pcm_recover(void *userdata, void *pcm_handle, int revents)
+audio_return_t audio_pcm_recover(void *audio_handle, void *pcm_handle, int revents)
 {
     int state, err;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
 
     if (revents & POLLERR)
@@ -696,7 +728,7 @@ audio_return_t audio_pcm_recover(void *userdata, void *pcm_handle, int revents)
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_get_params(void *userdata, void *pcm_handle, uint32_t direction, void **sample_spec, uint32_t *period_size, uint32_t *periods)
+audio_return_t audio_pcm_get_params(void *audio_handle, void *pcm_handle, uint32_t direction, void **sample_spec, uint32_t *period_size, uint32_t *periods)
 {
 #ifdef __USE_TINYALSA__
     audio_pcm_sample_spec_t *ss;
@@ -704,12 +736,14 @@ audio_return_t audio_pcm_get_params(void *userdata, void *pcm_handle, uint32_t d
     unsigned int _start_threshold, _stop_threshold, _silence_threshold;
     struct pcm_config *config;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(sample_spec, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(period_size, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(periods, AUDIO_ERR_PARAMETER);
     ss = (audio_pcm_sample_spec_t *)*sample_spec;
 
+    /* we use an internal API of the tiny alsa library, so it causes warning message during compile */
     _pcm_config(pcm_handle, &config);
 
     *period_size = config->period_size;
@@ -735,6 +769,7 @@ audio_return_t audio_pcm_get_params(void *userdata, void *pcm_handle, uint32_t d
     snd_pcm_hw_params_t *hwparams;
     snd_pcm_sw_params_t *swparams;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(sample_spec, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(period_size, AUDIO_ERR_PARAMETER);
@@ -783,7 +818,7 @@ audio_return_t audio_pcm_get_params(void *userdata, void *pcm_handle, uint32_t d
     return AUDIO_RET_OK;
 }
 
-audio_return_t audio_pcm_set_params(void *userdata, void *pcm_handle, uint32_t direction, void *sample_spec, uint32_t period_size, uint32_t periods)
+audio_return_t audio_pcm_set_params(void *audio_handle, void *pcm_handle, uint32_t direction, void *sample_spec, uint32_t period_size, uint32_t periods)
 {
 #ifdef __USE_TINYALSA__
     /* Parameters are only acceptable in pcm_open() function */
@@ -795,6 +830,7 @@ audio_return_t audio_pcm_set_params(void *userdata, void *pcm_handle, uint32_t d
     snd_pcm_hw_params_t *hwparams;
     snd_pcm_sw_params_t *swparams;
 
+    AUDIO_RETURN_VAL_IF_FAIL(audio_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(pcm_handle, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(sample_spec, AUDIO_ERR_PARAMETER);
     AUDIO_RETURN_VAL_IF_FAIL(period_size, AUDIO_ERR_PARAMETER);
@@ -826,7 +862,7 @@ audio_return_t audio_pcm_set_params(void *userdata, void *pcm_handle, uint32_t d
         return AUDIO_ERR_PARAMETER;
     }
 
-    if ((err = snd_pcm_hw_params_set_rate(pcm_handle, hwparams, ss.rate, NULL)) < 0) {
+    if ((err = snd_pcm_hw_params_set_rate(pcm_handle, hwparams, ss.rate, 0)) < 0) {
         AUDIO_LOG_ERROR("snd_pcm_hw_params_set_rate() failed : %d", err);
         return AUDIO_ERR_PARAMETER;
     }
