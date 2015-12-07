@@ -63,16 +63,14 @@ audio_return_t _audio_ucm_deinit(audio_hal_t *ah)
 
 void _audio_ucm_get_device_name(audio_hal_t *ah, const char *use_case, audio_direction_t direction, const char **value)
 {
-    char identifier[70] = {0};
+    char identifier[70] = { 0, };
 
     AUDIO_RETURN_IF_FAIL(ah);
     AUDIO_RETURN_IF_FAIL(ah->ucm.uc_mgr);
 
-    if (direction == AUDIO_DIRECTION_IN) {
-        sprintf(identifier, "CapturePCM//%s", use_case);
-    } else {
-        sprintf(identifier, "PlaybackPCM//%s", use_case);
-    }
+    snprintf(identifier, sizeof(identifier), "%sPCM//%s",
+             (direction == AUDIO_DIRECTION_IN)? "Capture" : "Playback", use_case);
+
     snd_use_case_get(ah->ucm.uc_mgr, identifier, value);
 }
 
@@ -139,28 +137,24 @@ static void __dump_use_case(const char *verb, const char *devices[], int dev_cou
     if (len > 0)
         dump += len;
 
-    for (i = 0; i < dev_count; i++) {
-        if (i != dev_count - 1) {
-            len = sprintf(dump, "%s, ", devices[i]);
-        } else {
-            len = sprintf(dump, "%s", devices[i]);
+    if (devices) {
+        for (i = 0; i < dev_count; i++) {
+            len = sprintf(dump, (i != dev_count - 1)? "%s, " : "%s", devices[i]);
+            if (len > 0)
+                dump += len;
         }
-        if (len > 0)
-            dump += len;
     }
 
     len = sprintf(dump, " ] Modifier [ ");
     if (len > 0)
         dump += len;
 
-    for (i = 0; i < mod_count; i++) {
-        if (i != mod_count - 1) {
-            len = sprintf(dump, "%s, ", modifiers[i]);
-        } else {
-            len = sprintf(dump, "%s", modifiers[i]);
+    if (modifiers) {
+        for (i = 0; i < mod_count; i++) {
+            len = sprintf(dump, (i != mod_count - 1)? "%s, " : "%s", modifiers[i]);
+            if (len > 0)
+                dump += len;
         }
-        if (len > 0)
-            dump += len;
     }
 
     len = sprintf(dump, " ]");
