@@ -50,23 +50,23 @@ static uint32_t convert_device_string_to_enum(const char* device_str, uint32_t d
 {
     uint32_t device = 0;
 
-    if (!strncmp(device_str,"builtin-speaker", MAX_NAME_LEN)) {
+    if (!strncmp(device_str, "builtin-speaker", MAX_NAME_LEN)) {
         device = AUDIO_DEVICE_OUT_SPEAKER;
-    } else if (!strncmp(device_str,"builtin-receiver", MAX_NAME_LEN)) {
+    } else if (!strncmp(device_str, "builtin-receiver", MAX_NAME_LEN)) {
         device = AUDIO_DEVICE_OUT_RECEIVER;
-    } else if ((!strncmp(device_str,"audio-jack", MAX_NAME_LEN)) && (direction == AUDIO_DIRECTION_OUT)) {
+    } else if ((!strncmp(device_str, "audio-jack", MAX_NAME_LEN)) && (direction == AUDIO_DIRECTION_OUT)) {
         device = AUDIO_DEVICE_OUT_JACK;
-    } else if ((!strncmp(device_str,"bt", MAX_NAME_LEN)) && (direction == AUDIO_DIRECTION_OUT)) {
+    } else if ((!strncmp(device_str, "bt", MAX_NAME_LEN)) && (direction == AUDIO_DIRECTION_OUT)) {
         device = AUDIO_DEVICE_OUT_BT_SCO;
-    } else if (!strncmp(device_str,"aux", MAX_NAME_LEN)) {
+    } else if (!strncmp(device_str, "aux", MAX_NAME_LEN)) {
         device = AUDIO_DEVICE_OUT_AUX;
-    } else if (!strncmp(device_str,"hdmi", MAX_NAME_LEN)) {
+    } else if (!strncmp(device_str, "hdmi", MAX_NAME_LEN)) {
         device = AUDIO_DEVICE_OUT_HDMI;
-    } else if ((!strncmp(device_str,"builtin-mic", MAX_NAME_LEN))) {
+    } else if ((!strncmp(device_str, "builtin-mic", MAX_NAME_LEN))) {
         device = AUDIO_DEVICE_IN_MAIN_MIC;
-    } else if ((!strncmp(device_str,"audio-jack", MAX_NAME_LEN)) && (direction == AUDIO_DIRECTION_IN)) {
+    } else if ((!strncmp(device_str, "audio-jack", MAX_NAME_LEN)) && (direction == AUDIO_DIRECTION_IN)) {
         device = AUDIO_DEVICE_IN_JACK;
-    } else if ((!strncmp(device_str,"bt", MAX_NAME_LEN)) && (direction == AUDIO_DIRECTION_IN)) {
+    } else if ((!strncmp(device_str, "bt", MAX_NAME_LEN)) && (direction == AUDIO_DIRECTION_IN)) {
         device = AUDIO_DEVICE_IN_BT_SCO;
     } else {
         device = AUDIO_DEVICE_NONE;
@@ -210,7 +210,6 @@ audio_return_t _do_route_voip(audio_hal_t *ah, device_info_t *devices, int32_t n
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     const char *verb = NULL;
-    const char *active_devices[MAX_DEVICES] = {NULL,};
     verb = AUDIO_USE_CASE_VERB_HIFI;
 
     AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
@@ -225,10 +224,6 @@ audio_return_t _do_route_voip(audio_hal_t *ah, device_info_t *devices, int32_t n
     }
     /* FIXME. If necessary, set VERB_VOIP */
     ah->device.mode = VERB_NORMAL;
-    if (active_devices == NULL) {
-        AUDIO_LOG_ERROR("Failed to set device: active device is NULL");
-        return AUDIO_ERR_PARAMETER;
-    }
 
     /* TO DO: Set modifiers */
     return audio_ret;
@@ -390,7 +385,7 @@ audio_return_t audio_pcm_open(void *audio_handle, void **pcm_handle, uint32_t di
     ah = (audio_hal_t *)audio_handle;
     mode =  SND_PCM_NONBLOCK | SND_PCM_NO_AUTO_RESAMPLE | SND_PCM_NO_AUTO_CHANNELS | SND_PCM_NO_AUTO_FORMAT;
 
-    if(direction == AUDIO_DIRECTION_OUT)
+    if (direction == AUDIO_DIRECTION_OUT)
         device_name = PLAYBACK_PCM_DEVICE;
     else if (direction == AUDIO_DIRECTION_IN)
         device_name = CAPTURE_PCM_DEVICE;
@@ -894,7 +889,7 @@ audio_return_t audio_pcm_set_params(void *audio_handle, void *pcm_handle, uint32
     }
 
     /* Set sw params */
-    if ((err = snd_pcm_sw_params_current(pcm_handle, swparams) < 0)) {
+    if ((err = snd_pcm_sw_params_current(pcm_handle, swparams)) < 0) {
         AUDIO_LOG_ERROR("Unable to determine current swparams : %d", err);
         return AUDIO_ERR_PARAMETER;
     }

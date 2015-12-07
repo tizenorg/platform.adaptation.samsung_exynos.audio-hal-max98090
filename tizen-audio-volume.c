@@ -209,7 +209,7 @@ static audio_return_t __load_volume_value_table_from_ini(audio_hal_t *ah)
                 while (token) {
                     /* convert dB volume to linear volume */
                     double vol_value = 0.0f;
-                    if(strncmp(token, "0", strlen(token)))
+                    if (strncmp(token, "0", strlen(token)))
                         vol_value = pow(10.0, (atof(token) - 100) / 20.0);
                     volume_value_table->volume[vol_type_idx][volume_value_table->volume_level_max[vol_type_idx]++] = vol_value;
                     token = strtok_r(NULL, delimiter, &ptr);
@@ -267,7 +267,7 @@ audio_return_t _audio_volume_init(audio_hal_t *ah)
 
     for (i = 0; i < AUDIO_VOLUME_TYPE_MAX; i++) {
         /* Get volume value string from VCONF */
-        if(vconf_get_int(g_volume_vconf[i], &val) < 0) {
+        if (vconf_get_int(g_volume_vconf[i], &val) < 0) {
             AUDIO_LOG_ERROR("vconf_get_int(%s) failed", g_volume_vconf[i]);
             continue;
         }
@@ -282,7 +282,7 @@ audio_return_t _audio_volume_init(audio_hal_t *ah)
     }
 
     audio_ret = __load_volume_value_table_from_ini(ah);
-    if(audio_ret != AUDIO_RET_OK) {
+    if (audio_ret != AUDIO_RET_OK) {
         AUDIO_LOG_ERROR("gain table load error");
         return AUDIO_ERR_UNDEFINED;
     }

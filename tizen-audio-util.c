@@ -99,7 +99,7 @@ audio_return_t _audio_mixer_control_get_value(audio_hal_t *ah, const char *ctl_n
 
     ret = snd_ctl_open(&handle, ALSA_DEFAULT_CARD, 0);
     if (ret < 0) {
-        AUDIO_LOG_ERROR ("snd_ctl_open error, %s\n", snd_strerror(ret));
+        AUDIO_LOG_ERROR("snd_ctl_open error, %s\n", snd_strerror(ret));
         pthread_mutex_unlock(&(ah->mixer.mutex));
         return AUDIO_ERR_IOCTL;
     }
@@ -114,8 +114,8 @@ audio_return_t _audio_mixer_control_get_value(audio_hal_t *ah, const char *ctl_n
     snd_ctl_elem_id_set_name(id, ctl_name);
 
     snd_ctl_elem_info_set_id(info, id);
-    if(snd_ctl_elem_info(handle, info) < 0 ) {
-        AUDIO_LOG_ERROR ("Cannot find control element: %s\n", ctl_name);
+    if (snd_ctl_elem_info(handle, info) < 0) {
+        AUDIO_LOG_ERROR("Cannot find control element: %s\n", ctl_name);
         goto close;
     }
     snd_ctl_elem_info_get_id(info, id);
@@ -125,8 +125,8 @@ audio_return_t _audio_mixer_control_get_value(audio_hal_t *ah, const char *ctl_n
 
     snd_ctl_elem_value_set_id(control, id);
 
-    if(snd_ctl_elem_read(handle, control) < 0) {
-        AUDIO_LOG_ERROR ("snd_ctl_elem_read failed \n");
+    if (snd_ctl_elem_read(handle, control) < 0) {
+        AUDIO_LOG_ERROR("snd_ctl_elem_read failed \n");
         goto close;
 }
 
@@ -143,7 +143,7 @@ audio_return_t _audio_mixer_control_get_value(audio_hal_t *ah, const char *ctl_n
         *val = snd_ctl_elem_value_get_enumerated(control, i);
         break;
     default:
-        AUDIO_LOG_WARN ("unsupported control element type\n");
+        AUDIO_LOG_WARN("unsupported control element type\n");
         goto close;
     }
 
@@ -157,7 +157,7 @@ audio_return_t _audio_mixer_control_get_value(audio_hal_t *ah, const char *ctl_n
     return AUDIO_RET_OK;
 
 close:
-    AUDIO_LOG_ERROR ("Error\n");
+    AUDIO_LOG_ERROR("Error\n");
     snd_ctl_close(handle);
     pthread_mutex_unlock(&(ah->mixer.mutex));
     return AUDIO_ERR_UNDEFINED;
@@ -196,7 +196,7 @@ audio_return_t _audio_mixer_control_set_value(audio_hal_t *ah, const char *ctl_n
     snd_ctl_elem_id_set_name(id, ctl_name);
 
     snd_ctl_elem_info_set_id(info, id);
-    if(snd_ctl_elem_info(handle, info) < 0 ) {
+    if (snd_ctl_elem_info(handle, info) < 0) {
         AUDIO_LOG_ERROR("Cannot find control element: %s", ctl_name);
         goto close;
     }
@@ -216,11 +216,11 @@ audio_return_t _audio_mixer_control_set_value(audio_hal_t *ah, const char *ctl_n
         break;
     case SND_CTL_ELEM_TYPE_INTEGER:
         for (i = 0; i < count; i++)
-            snd_ctl_elem_value_set_integer(control, i,val);
+            snd_ctl_elem_value_set_integer(control, i, val);
         break;
     case SND_CTL_ELEM_TYPE_ENUMERATED:
         for (i = 0; i < count; i++)
-            snd_ctl_elem_value_set_enumerated(control, i,val);
+            snd_ctl_elem_value_set_enumerated(control, i, val);
         break;
 
     default:
@@ -321,7 +321,7 @@ audio_return_t _audio_pcm_set_hw_params(snd_pcm_t *pcm, audio_pcm_sample_spec_t 
     snd_pcm_hw_params_alloca(&hwparams);
 
     /* Fill it in with default values. */
-    if(snd_pcm_hw_params_any(pcm, hwparams) < 0) {
+    if (snd_pcm_hw_params_any(pcm, hwparams) < 0) {
         AUDIO_LOG_ERROR("snd_pcm_hw_params_any() : failed! - %s\n", snd_strerror(err));
         goto error;
     }
@@ -413,7 +413,7 @@ audio_return_t _audio_pcm_set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t avail_
 
     snd_pcm_sw_params_alloca(&swparams);
 
-    if ((err = snd_pcm_sw_params_current(pcm, swparams) < 0)) {
+    if ((err = snd_pcm_sw_params_current(pcm, swparams)) < 0) {
         AUDIO_LOG_WARN("Unable to determine current swparams: %s\n", snd_strerror(err));
         goto error;
     }
@@ -449,3 +449,55 @@ audio_return_t _audio_pcm_set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t avail_
 error:
     return err;
 }
+
+/* ------ dump helper --------  */
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+dump_data_t* dump_new(int length)
+{
+    dump_data_t* dump = NULL;
+
+    if ((dump = malloc(sizeof(dump_data_t)))) {
+        memset(dump, 0, sizeof(dump_data_t));
+        if ((dump->strbuf = malloc(length))) {
+            dump->p = &dump->strbuf[0];
+            dump->left = length;
+        } else {
+            free(dump);
+            dump = NULL;
+        }
+    }
+
+    return dump;
+}
+
+void dump_add_str(dump_data_t *dump, const char *fmt, ...)
+{
+    int len;
+    va_list ap;
+
+    if (!dump)
+        return;
+
+    va_start(ap, fmt);
+    len = vsnprintf(dump->p, dump->left, fmt, ap);
+    va_end(ap);
+
+    dump->p += MAX(0, len);
+    dump->left -= MAX(0, len);
+}
+
+char* dump_get_str(dump_data_t *dump)
+{
+    return (dump) ? dump->strbuf : NULL;
+}
+
+void dump_free(dump_data_t *dump)
+{
+    if (dump) {
+        if (dump->strbuf)
+            free(dump->strbuf);
+        free(dump);
+    }
+}
+/* ------ dump helper --------  */
