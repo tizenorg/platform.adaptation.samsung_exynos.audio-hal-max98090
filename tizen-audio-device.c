@@ -210,7 +210,6 @@ audio_return_t _do_route_voip(audio_hal_t *ah, device_info_t *devices, int32_t n
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     const char *verb = NULL;
-    const char *active_devices[MAX_DEVICES] = {NULL,};
     verb = AUDIO_USE_CASE_VERB_HIFI;
 
     AUDIO_RETURN_VAL_IF_FAIL(ah, AUDIO_ERR_PARAMETER);
@@ -225,10 +224,6 @@ audio_return_t _do_route_voip(audio_hal_t *ah, device_info_t *devices, int32_t n
     }
     /* FIXME. If necessary, set VERB_VOIP */
     ah->device.mode = VERB_NORMAL;
-    if (active_devices == NULL) {
-        AUDIO_LOG_ERROR("Failed to set device: active device is NULL");
-        return AUDIO_ERR_PARAMETER;
-    }
 
     /* TO DO: Set modifiers */
     return audio_ret;
@@ -894,7 +889,7 @@ audio_return_t audio_pcm_set_params(void *audio_handle, void *pcm_handle, uint32
     }
 
     /* Set sw params */
-    if ((err = snd_pcm_sw_params_current(pcm_handle, swparams) < 0)) {
+    if ((err = snd_pcm_sw_params_current(pcm_handle, swparams)) < 0) {
         AUDIO_LOG_ERROR("Unable to determine current swparams : %d", err);
         return AUDIO_ERR_PARAMETER;
     }
