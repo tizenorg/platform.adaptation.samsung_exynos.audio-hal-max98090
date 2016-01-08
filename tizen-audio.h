@@ -30,7 +30,10 @@ typedef enum audio_return {
     AUDIO_ERR_RESOURCE                  = (int32_t)0x80001001,
     AUDIO_ERR_PARAMETER                 = (int32_t)0x80001002,
     AUDIO_ERR_IOCTL                     = (int32_t)0x80001003,
-    AUDIO_ERR_NOT_IMPLEMENTED           = (int32_t)0x80001004,
+    AUDIO_ERR_INVALID_STATE             = (int32_t)0x80001004,
+    AUDIO_ERR_INTERNAL                  = (int32_t)0x80001005,
+
+    AUDIO_ERR_NOT_IMPLEMENTED           = (int32_t)0x80001100,
 } audio_return_t ;
 
 typedef enum audio_direction {
