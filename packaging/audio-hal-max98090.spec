@@ -1,6 +1,6 @@
 Name:       audio-hal-max98090
 Summary:    TIZEN Audio HAL for MAX98090
-Version:    0.2.13
+Version:    0.2.14
 Release:    0
 Group:      System/Libraries
 License:    Apache-2.0
