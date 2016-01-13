@@ -76,16 +76,18 @@
 } while (0)
 
 /* Devices : Normal  */
+#define AUDIO_DEVICE_OUT               0x00000000
+#define AUDIO_DEVICE_IN                0x80000000
 enum audio_device_type {
     AUDIO_DEVICE_NONE                 = 0,
 
     /* output devices */
-    AUDIO_DEVICE_OUT_SPEAKER          = 0x00000001,
-    AUDIO_DEVICE_OUT_RECEIVER         = 0x00000002,
-    AUDIO_DEVICE_OUT_JACK             = 0x00000004,
-    AUDIO_DEVICE_OUT_BT_SCO           = 0x00000008,
-    AUDIO_DEVICE_OUT_AUX              = 0x00000010,
-    AUDIO_DEVICE_OUT_HDMI             = 0x00000020,
+    AUDIO_DEVICE_OUT_SPEAKER          = AUDIO_DEVICE_OUT | 0x00000001,
+    AUDIO_DEVICE_OUT_RECEIVER         = AUDIO_DEVICE_OUT | 0x00000002,
+    AUDIO_DEVICE_OUT_JACK             = AUDIO_DEVICE_OUT | 0x00000004,
+    AUDIO_DEVICE_OUT_BT_SCO           = AUDIO_DEVICE_OUT | 0x00000008,
+    AUDIO_DEVICE_OUT_AUX              = AUDIO_DEVICE_OUT | 0x00000010,
+    AUDIO_DEVICE_OUT_HDMI             = AUDIO_DEVICE_OUT | 0x00000020,
     AUDIO_DEVICE_OUT_ALL              = (AUDIO_DEVICE_OUT_SPEAKER |
                                          AUDIO_DEVICE_OUT_RECEIVER |
                                          AUDIO_DEVICE_OUT_JACK |
@@ -93,10 +95,10 @@ enum audio_device_type {
                                          AUDIO_DEVICE_OUT_AUX |
                                          AUDIO_DEVICE_OUT_HDMI),
     /* input devices */
-    AUDIO_DEVICE_IN_MAIN_MIC          = 0x80000001,
-    AUDIO_DEVICE_IN_SUB_MIC           = 0x80000002,
-    AUDIO_DEVICE_IN_JACK              = 0x80000004,
-    AUDIO_DEVICE_IN_BT_SCO            = 0x80000008,
+    AUDIO_DEVICE_IN_MAIN_MIC          = AUDIO_DEVICE_IN | 0x00000001,
+    AUDIO_DEVICE_IN_SUB_MIC           = AUDIO_DEVICE_IN | 0x00000002,
+    AUDIO_DEVICE_IN_JACK              = AUDIO_DEVICE_IN | 0x00000004,
+    AUDIO_DEVICE_IN_BT_SCO            = AUDIO_DEVICE_IN | 0x00000008,
     AUDIO_DEVICE_IN_ALL               = (AUDIO_DEVICE_IN_MAIN_MIC |
                                          AUDIO_DEVICE_IN_SUB_MIC |
                                          AUDIO_DEVICE_IN_JACK |
@@ -178,12 +180,6 @@ typedef struct audio_device_info {
 
 typedef enum audio_route_mode {
     VERB_NORMAL,
-
-/* Add verb mode if you need */
-
-/*   VERB_CALL, */
-/*   VERB_VOIP */
-
 } audio_route_mode_t;
 
 typedef struct audio_hal_device {
@@ -195,7 +191,6 @@ typedef struct audio_hal_device {
     uint32_t pcm_count;
     audio_route_mode_t mode;
 } audio_hal_device_t;
-
 
 /* Stream */
 #define AUDIO_VOLUME_LEVEL_MAX 16
@@ -299,7 +294,7 @@ audio_return_t _audio_volume_init(audio_hal_t *ah);
 audio_return_t _audio_volume_deinit(audio_hal_t *ah);
 
 audio_return_t _audio_device_init(audio_hal_t *ah);
-audio_return_t _audio_device_deinit(audio_hal_t * ah);
+audio_return_t _audio_device_deinit(audio_hal_t *ah);
 audio_return_t _audio_ucm_init(audio_hal_t *ah);
 audio_return_t _audio_ucm_deinit(audio_hal_t *ah);
 void _audio_ucm_get_device_name(audio_hal_t *ah, const char *use_case, audio_direction_t direction, const char **value);
