@@ -286,6 +286,8 @@ static audio_return_t _do_route_reset(audio_hal_t *ah, uint32_t direction)
     return audio_ret;
 }
 
+#define LOOPBACK_ARG_LATENCY_MSEC      40
+#define LOOPBACK_ARG_ADJUST_TIME_SEC   3
 audio_return_t audio_do_route(void *audio_handle, audio_route_info_t *info)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
@@ -310,6 +312,11 @@ audio_return_t audio_do_route(void *audio_handle, audio_route_info_t *info)
             AUDIO_LOG_WARN("set reset return 0x%x", audio_ret);
         }
     } else {
+        /* send latency and adjust time for loopback */
+        if (!strncmp("loopback", info->role, MAX_NAME_LEN)) {
+            _audio_comm_send_message(ah, "loopback::latency", LOOPBACK_ARG_LATENCY_MSEC);
+            _audio_comm_send_message(ah, "loopback::adjust_time", LOOPBACK_ARG_ADJUST_TIME_SEC);
+        }
         /* need to prepare for "alarm","notification","emergency","voice-information","voice-recognition","ringtone" */
         audio_ret = _do_route_ap_playback_capture(ah, info);
         if (AUDIO_IS_ERROR(audio_ret)) {
