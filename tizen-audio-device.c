@@ -28,6 +28,10 @@
 
 #include "tizen-audio-internal.h"
 
+#ifndef __USE_TINYALSA__
+/* FIXME : To avoid build warning... */
+int _snd_pcm_poll_descriptor(snd_pcm_t *pcm);
+#endif
 /* #define DEBUG_TIMING */
 
 static device_type_t outDeviceTypes[] = {
