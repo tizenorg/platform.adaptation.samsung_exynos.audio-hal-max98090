@@ -330,7 +330,7 @@ audio_return_t audio_update_route(void *audio_handle, audio_route_info_t *info)
     return audio_ret;
 }
 
-audio_return_t audio_update_stream_connection_info(void *audio_handle, audio_stream_info_t *info, uint32_t is_connected)
+audio_return_t audio_notify_stream_connection_changed(void *audio_handle, audio_stream_info_t *info, uint32_t is_connected)
 {
     audio_return_t audio_ret = AUDIO_RET_OK;
     audio_hal_t *ah = (audio_hal_t *)audio_handle;
