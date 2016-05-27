@@ -4,7 +4,7 @@
 /*
  * audio-hal
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2015 - 2016 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include <stdint.h>
 
 /* Error code */
-#define AUDIO_IS_ERROR(ret)             (ret < 0)
 typedef enum audio_return {
     AUDIO_RET_OK                        = 0,
     AUDIO_ERR_UNDEFINED                 = (int32_t)0x80001000,
@@ -90,10 +89,9 @@ typedef struct audio_interface {
     audio_return_t (*update_route_option)(void *audio_handle, audio_route_option_t *option);
     /* Stream */
     audio_return_t (*notify_stream_connection_changed)(void *audio_handle, audio_stream_info_t *info, uint32_t is_connected);
-    /* Buffer attribute */
     audio_return_t (*get_buffer_attr)(void *audio_handle, uint32_t direction, const char *latency, uint32_t samplerate, int format, uint32_t channels,
                                       uint32_t *maxlength, uint32_t *tlength, uint32_t *prebuf, uint32_t* minreq, uint32_t *fragsize);
-    /* PCM device */
+    /* PCM */
     audio_return_t (*pcm_open)(void *audio_handle, void **pcm_handle, uint32_t direction, void *sample_spec, uint32_t period_size, uint32_t periods);
     audio_return_t (*pcm_start)(void *audio_handle, void *pcm_handle);
     audio_return_t (*pcm_stop)(void *audio_handle, void *pcm_handle);
