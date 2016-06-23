@@ -89,8 +89,6 @@ typedef struct audio_interface {
     audio_return_t (*update_route_option)(void *audio_handle, audio_route_option_t *option);
     /* Stream */
     audio_return_t (*notify_stream_connection_changed)(void *audio_handle, audio_stream_info_t *info, uint32_t is_connected);
-    audio_return_t (*get_buffer_attr)(void *audio_handle, uint32_t direction, const char *latency, uint32_t samplerate, int format, uint32_t channels,
-                                      uint32_t *maxlength, uint32_t *tlength, uint32_t *prebuf, uint32_t* minreq, uint32_t *fragsize);
     /* PCM */
     audio_return_t (*pcm_open)(void *audio_handle, void **pcm_handle, uint32_t direction, void *sample_spec, uint32_t period_size, uint32_t periods);
     audio_return_t (*pcm_start)(void *audio_handle, void *pcm_handle);
@@ -119,8 +117,6 @@ audio_return_t audio_set_volume_mute(void *audio_handle, audio_volume_info_t *in
 audio_return_t audio_update_route(void *audio_handle, audio_route_info_t *info);
 audio_return_t audio_update_route_option(void *audio_handle, audio_route_option_t *option);
 audio_return_t audio_notify_stream_connection_changed(void *audio_handle, audio_stream_info_t *info, uint32_t is_connected);
-audio_return_t audio_get_buffer_attr(void *audio_handle, uint32_t direction, const char *latency, uint32_t samplerate, int format, uint32_t channels,
-                                     uint32_t *maxlength, uint32_t *tlength, uint32_t *prebuf, uint32_t* minreq, uint32_t *fragsize);
 audio_return_t audio_pcm_open(void *audio_handle, void **pcm_handle, uint32_t direction, void *sample_spec, uint32_t period_size, uint32_t periods);
 audio_return_t audio_pcm_start(void *audio_handle, void *pcm_handle);
 audio_return_t audio_pcm_stop(void *audio_handle, void *pcm_handle);
